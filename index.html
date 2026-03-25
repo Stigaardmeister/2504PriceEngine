@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pricing Estimate Engine</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#f5f4f0;color:#1a1a1a;min-height:100vh}
+.app{display:grid;grid-template-columns:400px 1fr;min-height:100vh}
+.panel{background:#fff;border-right:1px solid #e0ddd5;display:flex;flex-direction:column;overflow:hidden}
+.tab-bar{display:flex;border-bottom:1px solid #e8e5dd;flex-shrink:0}
+.tab-btn{flex:1;padding:11px 3px;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#999;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s}
+.tab-btn.active{color:#1a1a1a;border-bottom-color:#1a1a1a}
+.tab-btn:hover:not(.active){color:#555;background:#fafaf8}
+.tab-content{display:none;overflow-y:auto;flex:1}
+.tab-content.active{display:block}
+.section{padding:13px 17px;border-bottom:1px solid #f0ede5}
+.sec-hd{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#aaa;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
+.field{margin-bottom:8px}
+.field:last-child{margin-bottom:0}
+.field label{display:block;font-size:11px;font-weight:600;color:#555;margin-bottom:3px}
+.field input[type=text],.field input[type=number],.field input[type=date],.field select,.field textarea{width:100%;padding:6px 9px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fafaf8;color:#1a1a1a;outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:#1a1a1a;background:#fff}
+.field textarea{resize:vertical;min-height:50px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.emp-d{display:flex;align-items:center;gap:8px}
+.emp-d input[type=range]{flex:1}
+.cbtn{flex:1;padding:5px 4px;border:1px solid #ddd;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;background:#fafaf8;color:#666;transition:all .15s;text-align:center}
+.cbtn.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.cbtn:hover:not(.active){background:#f0ede5}
+
+/* TYPE COLORS */
+.tb{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.tb-license{background:#e6f1fb;color:#185fa5}
+.tb-implementation{background:#faeeda;color:#854f0b}
+.tb-migration{background:#f3edfb;color:#533fb0}
+.tb-custom{background:#eaf3de;color:#3b6d11}
+
+/* ── CATALOG LIBRARY ── */
+.lib-toolbar{padding:10px 17px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #f0ede5;background:#fafaf8}
+.lib-search{flex:1;padding:6px 10px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;outline:none}
+.lib-search:focus{border-color:#1a1a1a}
+.lib-type-filter{padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:11px;background:#fff;outline:none}
+.lib-add-btn{padding:6px 12px;background:#1a1a1a;color:#fff;border:none;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.lib-add-btn:hover{background:#333}
+
+.lib-type-section{margin-bottom:0}
+.lib-type-header{display:flex;align-items:center;gap:8px;padding:8px 17px;background:#f8f6f0;border-bottom:1px solid #e8e5dd;border-top:1px solid #e8e5dd;cursor:pointer;user-select:none}
+.lib-type-header:hover{background:#f0ede5}
+.lib-type-header .lth-label{font-size:11px;font-weight:700;flex:1}
+.lib-type-header .lth-count{font-size:10px;color:#bbb;font-weight:600}
+.lib-type-header .lth-arrow{font-size:10px;color:#bbb;transition:transform .15s}
+.lib-type-header.open .lth-arrow{transform:rotate(90deg)}
+.lib-products{display:none;padding:6px 10px}
+.lib-type-header.open + .lib-products{display:block}
+
+.lib-product-card{border:1px solid #e8e5dd;border-radius:8px;margin-bottom:6px;background:#fff;overflow:hidden;transition:box-shadow .15s}
+.lib-product-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.lib-product-card.editing{border-color:#1a1a1a}
+.lpc-header{display:flex;align-items:center;gap:8px;padding:9px 11px;cursor:pointer}
+.lpc-info{flex:1;min-width:0}
+.lpc-name{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lpc-meta{font-size:10px;color:#999;margin-top:1px}
+.lpc-actions{display:flex;gap:4px;flex-shrink:0}
+.lpc-btn{background:none;border:none;cursor:pointer;padding:3px 5px;border-radius:4px;font-size:11px;color:#888;transition:all .15s}
+.lpc-btn:hover{background:#f0ede5;color:#1a1a1a}
+.lpc-btn.danger:hover{background:#fcebeb;color:#a32d2d}
+
+.lpc-editor{padding:10px 11px;border-top:1px solid #f0ede5;background:#fafaf8}
+.lpc-editor .field{margin-bottom:7px}
+.lpc-editor .field label{font-size:10px;font-weight:600;color:#666}
+.lpc-editor .field input,.lpc-editor .field select{padding:5px 8px;font-size:11px}
+.lpc-ef{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+
+.tier-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:4px}
+.tier-table th{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#bbb;padding:4px 6px;text-align:left;border-bottom:1px solid #f0ede5}
+.tier-table td{padding:4px 5px;border-bottom:1px solid #f5f3ef}
+.tier-table input{width:100%;border:1px solid transparent;background:transparent;font-size:11px;outline:none;padding:2px 3px;border-radius:3px}
+.tier-table input:focus{background:#fffbe8;border-color:#e0d890}
+.tier-table tr:last-child td{border-bottom:none}
+.add-tier-link{font-size:10px;color:#999;cursor:pointer;text-decoration:underline;border:none;background:none;padding:2px 0;margin-top:4px;display:block}
+.add-tier-link:hover{color:#1a1a1a}
+.del-x{color:#ddd;cursor:pointer;font-size:13px;font-weight:700;line-height:1}
+.del-x:hover{color:#e24b4a}
+
+/* ── OFFER PICKLIST ── */
+.pick-tbl{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px}
+.pick-tbl th{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#bbb;padding:5px 6px;text-align:left;border-bottom:1px solid #e8e5dd;background:#f8f6f0;white-space:nowrap}
+.pick-tbl th:last-child,.pick-tbl td:last-child{text-align:right}
+.pick-tbl td{padding:5px 6px;border-bottom:1px solid #f2efe8;vertical-align:middle}
+.pick-tbl tr:hover td{background:#fdfbf5}
+.pick-tbl tr.pick-sel td{background:#f5faf0}
+.pick-tbl tr.pick-sel td:first-child{border-left:2px solid #3b6d11}
+.pick-tbl tr.pick-dis td{opacity:.45}
+.pick-chk{cursor:pointer;accent-color:#1a1a1a;width:13px;height:13px}
+.pick-inp{width:70px;padding:3px 5px;border:1px solid #ddd;border-radius:4px;font-size:11px;background:#fafaf8;outline:none;text-align:right}
+.pick-inp:focus{border-color:#1a1a1a;background:#fff}
+.pick-inp.has-val{border-color:#185fa5;background:#f0f6ff;font-weight:600}
+.pick-type-hdr td{background:#f3f0e8!important;font-size:10px!important;font-weight:700!important;letter-spacing:.08em;text-transform:uppercase;color:#777!important;padding:5px 7px!important}
+.pick-calc{font-size:10px;color:#888;white-space:nowrap}
+.pick-calc.hl{color:#185fa5;font-weight:600}
+.pinfo{flex:1;min-width:0}
+.pname{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pmeta{font-size:10px;color:#999;margin-top:1px}
+.pick-item.sel .pmeta{color:#aaa}
+
+/* ── OFFERS ── */
+.offer-item{display:flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid #e8e5dd;border-radius:7px;cursor:pointer;transition:all .15s;background:#fafaf8;margin-bottom:4px}
+.offers-scroll{max-height:240px;overflow-y:auto;margin-top:6px}
+.offers-scroll::-webkit-scrollbar{width:4px}
+.offers-scroll::-webkit-scrollbar-track{background:transparent}
+.offers-scroll::-webkit-scrollbar-thumb{background:#ddd;border-radius:2px}
+.offer-search{width:100%;padding:5px 9px;border:1px solid #ddd;border-radius:6px;font-size:11px;background:#fafaf8;outline:none;margin-bottom:6px}
+.offer-search:focus{border-color:#1a1a1a;background:#fff}
+.offer-count{font-size:10px;color:#bbb;font-weight:600}
+.offer-item:hover{border-color:#bbb}
+.offer-item.aof{border-color:#1a1a1a;background:#1a1a1a;color:#fff}
+.offer-item.aof .pmeta{color:#aaa}
+.oi-acts{display:flex;gap:3px;flex-shrink:0}
+.ibt{background:none;border:none;cursor:pointer;padding:2px;opacity:.3;transition:opacity .15s}
+.ibt:hover{opacity:1}
+.offer-item.aof .ibt{opacity:.45}
+.offer-item.aof .ibt:hover{opacity:1}
+
+/* ── OVERRIDES ── */
+.ov-row{display:grid;gap:5px;align-items:start;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #f5f0e8}
+.ov-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.ov-row-lic{grid-template-columns:1fr}
+.ov-row-other{grid-template-columns:1fr 90px}
+.ov-sub{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:4px}
+.ov-sub-2{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:4px}
+.ov-field-lbl{font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#b8860b;margin-bottom:2px}
+.ov-field-lbl.mu{color:#aaa}
+.ov-lbl{font-size:11px;color:#555;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-inp{padding:4px 6px;border:1px solid #e0d8c0;border-radius:5px;font-size:11px;background:#fffdf5;color:#1a1a1a;outline:none;width:100%}
+.ov-inp:focus{border-color:#b8860b}
+
+/* ── LOGO ── */
+.logo-area{border:1.5px dashed #ccc;border-radius:8px;padding:12px;text-align:center;cursor:pointer;transition:all .15s;background:#fafaf8}
+.logo-area:hover{border-color:#888;background:#f5f2ea}
+.logo-prev{max-height:52px;max-width:150px;object-fit:contain}
+.logo-pw{display:flex;align-items:center;justify-content:center;gap:10px}
+.lrem{font-size:11px;color:#999;cursor:pointer;text-decoration:underline}
+
+/* ── PREVIEW ── */
+.preview{padding:26px;overflow-y:auto;background:#f5f4f0}
+.prev-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.prev-acts{display:flex;gap:7px}
+.btn-print,.btn-copy{padding:7px 14px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #ddd;transition:all .15s}
+.btn-print{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.btn-print:hover{background:#333}
+.btn-copy{background:#fff;color:#444}
+.btn-copy:hover{background:#f5f2ea;border-color:#999}
+.offer-tabs{display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap}
+.otab{padding:4px 11px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid #ddd;background:#fff;color:#666;cursor:pointer;transition:all .15s;white-space:nowrap}
+.otab.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+.otab:hover:not(.active){background:#f5f2ea;border-color:#bbb}
+
+/* ── OFFER DOC ── */
+.odoc{background:#fff;border:1px solid #e0ddd5;border-radius:12px;overflow:hidden;max-width:900px}
+.ohdr{background:#2c4a6e;color:#fff;padding:24px 34px;display:flex;justify-content:space-between;align-items:center}
+.ohdr-left h2{font-size:21px;font-weight:700;letter-spacing:-.01em}
+.ohdr-left p{font-size:12px;color:rgba(255,255,255,0.7);margin-top:3px}
+.ohdr-right{display:flex;align-items:center;gap:16px}
+.ometa{text-align:right}
+.ometa .oref{font-size:11px;font-weight:700;letter-spacing:.1em;color:#fff;text-transform:uppercase}
+.ometa .odate{font-size:11px;color:rgba(255,255,255,0.7);margin-top:2px}
+.obody{padding:24px 34px}
+.oparties{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #f0ede5}
+.plbl{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#bbb;margin-bottom:4px}
+.pnm{font-size:14px;font-weight:700;color:#1a1a1a}
+.pdt{font-size:12px;color:#666;margin-top:2px;line-height:1.5}
+table.otbl{width:100%;border-collapse:collapse}
+.otbl thead tr{background:#f8f6f0}
+.otbl thead th{padding:8px 11px;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#999;text-align:left;border-bottom:1px solid #e8e5dd}
+.otbl thead th:last-child{text-align:right}
+.otbl tbody tr{border-bottom:1px solid #f0ede5}
+.otbl tbody td{padding:10px 11px;font-size:13px;color:#1a1a1a;vertical-align:top}
+.otbl tbody td:last-child{text-align:right;font-weight:600}
+.td-svc{font-weight:600}
+.td-m{color:#777;font-size:12px}
+.sec-license td{background:#e8f1fc!important;padding:7px 11px!important;font-size:10px!important;font-weight:700!important;letter-spacing:.1em;text-transform:uppercase;color:#185fa5!important;border-bottom:1px solid #d0e4f5!important}
+.sec-implementation td{background:#fdf3e3!important;padding:7px 11px!important;font-size:10px!important;font-weight:700!important;letter-spacing:.1em;text-transform:uppercase;color:#854f0b!important;border-bottom:1px solid #f0dfc0!important}
+.sec-migration td{background:#f3edfb!important;padding:7px 11px!important;font-size:10px!important;font-weight:700!important;letter-spacing:.1em;text-transform:uppercase;color:#533fb0!important;border-bottom:1px solid #e0d4f5!important}
+.sec-custom td{background:#eaf3de!important;padding:7px 11px!important;font-size:10px!important;font-weight:700!important;letter-spacing:.1em;text-transform:uppercase;color:#3b6d11!important;border-bottom:1px solid #d0e8b8!important}
+.ototals{margin-top:16px;border-top:2px solid #1a1a1a;padding-top:13px}
+.trow{display:flex;justify-content:space-between;padding:3px 0;font-size:13px}
+.trow.mu{color:#888}
+.trow.disc{color:#888}
+.trow.grand{font-size:17px;font-weight:700;padding-top:9px;border-top:1px solid #e0ddd5;margin-top:5px}
+.trow.grand .tlbl{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.trow.t-license{color:#185fa5}
+.trow.t-implementation{color:#854f0b}
+.trow.t-migration{color:#533fb0}
+.trow.t-custom{color:#3b6d11}
+.oftr{padding:16px 34px;background:#f8f6f0;border-top:1px solid #e8e5dd}
+.oftr .val{font-size:12px;color:#888}
+.nlbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#bbb;margin-bottom:3px;margin-top:11px}
+.ntxt{font-size:12px;color:#555;line-height:1.6}
+.empty{text-align:center;padding:56px 20px;color:#ccc}
+.empty p{font-size:13px;margin-top:10px}
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
+  .app{display:block}
+  .panel{display:none}
+  .preview{padding:0;background:#fff}
+  .prev-top,.offer-tabs{display:none}
+  .odoc{border:none;border-radius:0;max-width:100%}
+  .ohdr{background:#2c4a6e!important;color:#fff!important}
+  .ohdr-left h2{color:#fff!important}
+  .ohdr-left p{color:rgba(255,255,255,0.7)!important}
+  .ometa .oref{color:#fff!important}
+  .ometa .odate{color:rgba(255,255,255,0.7)!important}
+  .sec-license td{background:#e8f1fc!important;color:#185fa5!important}
+  .sec-implementation td{background:#fdf3e3!important;color:#854f0b!important}
+  .sec-migration td{background:#f3edfb!important;color:#533fb0!important}
+  .sec-custom td{background:#eaf3de!important;color:#3b6d11!important}
+  .oftr{background:#f8f6f0!important}
+  .ototals{border-top:2px solid #1a1a1a!important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ════ LEFT PANEL ════ -->
+<div class="panel">
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('offer',this)">Build Offer</button>
+  <button class="tab-btn" onclick="switchTab('library',this)">Product Library</button>
+</div>
+
+<!-- ══ BUILD OFFER TAB ══ -->
+<div class="tab-content active" id="tab-offer">
+
+  <div class="section">
+    <div class="sec-hd">Prepared offers
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="offer-count" id="offersCount"></span>
+        <button onclick="newOffer()" style="font-size:10px;background:#1a1a1a;color:#fff;border:none;border-radius:5px;padding:3px 9px;cursor:pointer;font-weight:700">+ New</button>
+      </div>
+    </div>
+    <input class="offer-search" id="offerSearch" type="text" placeholder="Search offers…" oninput="renderOffersList()">
+    <div class="offers-scroll" id="offersList"></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-hd">Client</div>
+    <div class="field"><label>Company name</label><input type="text" id="clientName" placeholder="Acme Corp" oninput="uco()"></div>
+    <div class="field"><label>Contact person</label><input type="text" id="contactName" placeholder="Jane Smith" oninput="uco()"></div>
+    <div class="frow">
+      <div class="field"><label>Offer date</label><input type="date" id="offerDate" oninput="uco()"></div>
+      <div class="field"><label>Valid until</label><input type="date" id="validUntil" oninput="uco()"></div>
+    </div>
+    <div class="field"><label>Offer reference</label><input type="text" id="offerRef" placeholder="OFF-2026-001" oninput="uco()"></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-hd">Customer logo</div>
+    <div style="display:flex;gap:5px;margin-bottom:7px">
+      <button class="cbtn active" id="ltabUp" onclick="setLogoTab('up')" style="font-size:10px;padding:4px">Upload</button>
+      <button class="cbtn" id="ltabUrl" onclick="setLogoTab('url')" style="font-size:10px;padding:4px">URL / link</button>
+    </div>
+    <div id="logoUpPane">
+      <div class="logo-area" onclick="document.getElementById('logoInput').click()">
+        <div id="logoPlh" style="font-size:12px;color:#aaa">
+          <svg width="20" height="20" viewBox="0 0 22 22" fill="none" style="margin:0 auto 5px;display:block"><rect x="1" y="4" width="20" height="14" rx="2.5" stroke="#ccc" stroke-width="1.5"/><circle cx="7.5" cy="9.5" r="1.5" stroke="#ccc" stroke-width="1.2"/><polyline points="1,16 7,10 12,14 15,11 21,16" stroke="#ccc" stroke-width="1.2" fill="none"/></svg>
+          Click to upload
+        </div>
+        <div id="logoPrvW" class="logo-pw" style="display:none">
+          <img id="logoPrvI" class="logo-prev" src="" alt=""><span class="lrem" onclick="remLogo(event)">Remove</span>
+        </div>
+      </div>
+      <input type="file" id="logoInput" accept="image/*" style="display:none" onchange="handleLogo(event)">
+    </div>
+    <div id="logoUrlPane" style="display:none">
+      <div class="field" style="margin-bottom:5px"><input type="text" id="logoUrl" placeholder="https://example.com/logo.png" oninput="handleLogoUrl(this.value)"></div>
+      <div id="logoUrlPrv" style="display:none;align-items:center;gap:8px;padding:7px;background:#fafaf8;border:1px solid #e8e5dd;border-radius:6px">
+        <img id="logoUrlImg" class="logo-prev" src="" alt=""><span class="lrem" onclick="remLogoUrl()">Remove</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-hd">Scope</div>
+    <div class="field">
+      <label>Number of employees</label>
+      <input type="number" id="empNum" min="1" max="50000" value="600" placeholder="e.g. 600" oninput="uco()">
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="sec-hd">Products to include
+      <span style="font-size:10px;font-weight:400;color:#bbb;text-transform:none;letter-spacing:0">from library</span>
+    </div>
+    <div id="productPicklist"></div>
+  </div>
+
+  <div class="section" id="ovSection" style="display:none">
+    <div class="sec-hd">Price overrides
+      <span style="font-size:10px;color:#b8860b;font-weight:600;text-transform:none;letter-spacing:0">replaces in offer</span>
+    </div>
+    <p style="font-size:10px;color:#b8860b;margin-bottom:8px;line-height:1.5">License: enter PEPM or yearly to override price. Years overrides contract length shown in offer. Non-license: override the one-time fee.</p>
+    <div id="ovRows"></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-hd">Document attachments
+      <span style="font-size:10px;font-weight:400;color:#bbb;text-transform:none;letter-spacing:0">download with offer</span>
+    </div>
+    <div id="attachList" style="margin-bottom:6px"></div>
+    <label style="display:flex;align-items:center;gap:7px;padding:7px 9px;border:1px dashed #ccc;border-radius:7px;cursor:pointer;font-size:11px;color:#888;transition:all .15s" onmouseover="this.style.borderColor='#888'" onmouseout="this.style.borderColor='#ccc'">
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none"><path d="M5.5 1v9M1 5.5h9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      Add Word / PDF document
+      <input type="file" id="attachInput" accept=".docx,.pdf,.doc,.xlsx,.pptx" multiple style="display:none" onchange="handleAttach(event)">
+    </label>
+    <p style="font-size:10px;color:#bbb;margin-top:5px">Selected documents will be offered as individual downloads alongside the offer JPG/PDF.</p>
+  </div>
+
+  <div class="section">
+    <div class="sec-hd">Adjustments</div>
+    <div class="field">
+      <label style="display:flex;align-items:center;justify-content:space-between">
+        <span>Discount (%)</span>
+        <label style="display:flex;align-items:center;gap:5px;font-weight:400;color:#888;cursor:pointer">
+          <input type="checkbox" id="showList" onchange="uco()" style="width:auto;margin:0"> Show list price
+        </label>
+      </label>
+      <div class="emp-d">
+        <input type="range" id="discSlider" min="0" max="80" step="0.5" value="0" oninput="document.getElementById('discNum').value=this.value;uco()">
+        <input type="number" id="discNum" class="emp-n field" style="margin:0;width:56px" min="0" max="80" step="0.5" value="0" oninput="document.getElementById('discSlider').value=Math.min(this.value,80);uco()">
+      </div>
+    </div>
+    <div class="field"><label>Notes / terms</label><textarea id="notes" placeholder="Payment terms, conditions…" oninput="uco()"></textarea></div>
+  </div>
+
+  <div class="section">
+    <div class="sec-hd">Your company</div>
+    <div class="field"><label>Company name</label><input type="text" id="senderName" placeholder="PXMSOFT A/S" oninput="uco()"></div>
+    <div class="field"><label>Prepared by</label><input type="text" id="senderContact" placeholder="John Doe" oninput="uco()"></div>
+    <div class="field">
+      <label>Your company logo (shown in header)</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:44px;height:44px;border-radius:6px;background:#2c4a6e;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <img id="vendorLogoThumb" src="" style="max-width:36px;max-height:36px;object-fit:contain;display:none">
+          <span id="vendorLogoPlh" style="font-size:10px;color:rgba(255,255,255,0.5)">Logo</span>
+        </div>
+        <div style="flex:1">
+          <button onclick="document.getElementById('vendorLogoInput').click()" style="width:100%;padding:5px 8px;border:1px dashed #ccc;border-radius:5px;background:#fafaf8;font-size:11px;color:#888;cursor:pointer">Upload logo</button>
+          <input type="file" id="vendorLogoInput" accept="image/*" style="display:none" onchange="handleVendorLogo(event)">
+        </div>
+        <button id="vendorLogoRemove" onclick="removeVendorLogo()" style="display:none;padding:4px 8px;border:1px solid #ddd;border-radius:5px;font-size:11px;color:#888;background:#fff;cursor:pointer">✕</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Currency</label>
+      <select id="currency" onchange="uco()" style="font-size:12px">
+        <option value="EUR">EUR — Euro (€)</option>
+        <option value="DKK">DKK — Danish Krone (kr.)</option>
+        <option value="SEK">SEK — Swedish Krona (kr)</option>
+        <option value="NOK">NOK — Norwegian Krone (kr)</option>
+        <option value="GBP">GBP — British Pound (£)</option>
+        <option value="USD">USD — US Dollar ($)</option>
+        <option value="CHF">CHF — Swiss Franc (CHF)</option>
+        <option value="PLN">PLN — Polish Zloty (zł)</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PRODUCT LIBRARY TAB ══ -->
+<div class="tab-content" id="tab-library">
+  <div class="lib-toolbar">
+    <input class="lib-search" type="text" id="libSearch" placeholder="Search products…" oninput="renderLibrary()">
+    <select class="lib-type-filter" id="libTypeFilter" onchange="renderLibrary()">
+      <option value="">All types</option>
+      <option value="license">License</option>
+      <option value="implementation">Implementation</option>
+      <option value="migration">Migration</option>
+      <option value="custom">Custom Dev</option>
+    </select>
+    <button class="lib-add-btn" onclick="addLibProduct()">+ Add product</button>
+  </div>
+  <div id="libraryContent"></div>
+</div>
+</div>
+
+<!-- ════ PREVIEW ════ -->
+<div class="preview">
+  <div class="prev-top">
+    <span style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#999">Offer preview</span>
+    <div class="prev-acts">
+      <button class="btn-copy" onclick="copyOffer()">Copy as text</button>
+      <button class="btn-copy" id="btnJpg" onclick="saveAsJpg()">Save as JPG</button>
+      <button class="btn-copy" id="btnDocs" onclick="exportZip()" style="display:none">↓ Export ZIP</button>
+      <button class="btn-print" onclick="window.print()">Print / Export PDF</button>
+    </div>
+  </div>
+  <div class="offer-tabs" id="offerTabs"></div>
+  <div class="odoc" id="offerDoc">
+    <div class="empty">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="8" y="4" width="24" height="32" rx="3" stroke="#ccc" stroke-width="1.5"/><line x1="13" y1="13" x2="27" y2="13" stroke="#999" stroke-width="1.5"/><line x1="13" y1="19" x2="27" y2="19" stroke="#999" stroke-width="1.5"/><line x1="13" y1="25" x2="21" y2="25" stroke="#999" stroke-width="1.5"/></svg>
+      <p>Select products to generate offer</p>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- Zoho CRM JS SDK - only active when running inside Zoho -->
+<script src="https://live.zwidgets.com/js-sdk/1.2/ZohoEmbeddedAppSDK.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+// ═══ CONSTANTS ═══════════════════════════════════════════════════
+const TYPES=['license','implementation','migration','custom'];
+const TYPE_LABELS={license:'License & Subscriptions',implementation:'Implementation',migration:'Migration',custom:'Custom Development'};
+const TYPE_CLASS={license:'sec-license',implementation:'sec-implementation',migration:'sec-migration',custom:'sec-custom'};
+const TYPE_TROW={license:'t-license',implementation:'t-implementation',migration:'t-migration',custom:'t-custom'};
+const TYPE_BADGE={license:'tb-license',implementation:'tb-implementation',migration:'tb-migration',custom:'tb-custom'};
+const TYPE_NAMES={license:'License',implementation:'Implementation',migration:'Migration',custom:'Custom Dev'};
+
+// ═══ PRODUCT LIBRARY (master catalog) ════════════════════════════
+// Each product: { id, name, type, metric, startOffset, duration, tiers:[{from,to,ppm,impl}], _flat? }
+let library = [
+  {id:'ORG_1000',name:'PXMSOFT Org Chart & Modelling',type:'license',metric:'User',startOffset:0,duration:36,
+   tiers:[{from:1,to:500,ppm:6.00,impl:0},{from:501,to:1000,ppm:4.00,impl:0},{from:1001,to:1500,ppm:2.50,impl:0},{from:1501,to:2500,ppm:2.00,impl:0},{from:2501,to:5000,ppm:1.50,impl:0},{from:5001,to:7500,ppm:1.35,impl:0},{from:7501,to:10000,ppm:1.25,impl:0},{from:10001,to:20000,ppm:1.20,impl:0},{from:20001,to:null,ppm:0,impl:0}]},
+  {id:'ED_1000',name:'PXMSOFT Document Management',type:'license',metric:'User',startOffset:0,duration:36,
+   tiers:[{from:1,to:500,ppm:4.00,impl:0},{from:501,to:1000,ppm:3.80,impl:0},{from:1001,to:1500,ppm:3.60,impl:0},{from:1501,to:2500,ppm:3.20,impl:0},{from:2501,to:5000,ppm:2.83,impl:0},{from:5001,to:7500,ppm:2.08,impl:0},{from:7501,to:10000,ppm:1.58,impl:0},{from:10001,to:20000,ppm:1.20,impl:0},{from:20001,to:null,ppm:1.08,impl:0}]},
+  {id:'ED_2000',name:'PXMSOFT Document Management - Archive',type:'license',metric:'User',startOffset:0,duration:36,
+   tiers:[{from:1,to:500,ppm:2.00,impl:0},{from:501,to:1000,ppm:1.90,impl:0},{from:1001,to:null,ppm:1.60,impl:0}]},
+  {id:'CC_1000',name:'PXMSOFT Certify & Comply',type:'license',metric:'User',startOffset:0,duration:36,
+   tiers:[{from:1,to:500,ppm:4.00,impl:0},{from:501,to:1000,ppm:3.80,impl:0},{from:1001,to:1500,ppm:3.60,impl:0},{from:1501,to:2500,ppm:3.20,impl:0},{from:2501,to:5000,ppm:2.83,impl:0},{from:5001,to:null,ppm:1.25,impl:0}]},
+  {id:'TT_1001',name:'PXMSOFT Time Tracking+',type:'license',metric:'User',startOffset:0,duration:36,
+   tiers:[{from:1,to:null,ppm:1.25,impl:0}]},
+  {id:'PAY_1000',name:'PXMSOFT Equal Pay',type:'license',metric:'N/A',startOffset:0,duration:36,
+   tiers:[{from:1,to:500,ppm:0.50,impl:0},{from:501,to:1000,ppm:0.50,impl:0},{from:1001,to:null,ppm:0.50,impl:0}]},
+  {id:'ORG_IMPL',name:'Implementation – Org Chart & Modelling',type:'implementation',metric:'N/A',startOffset:0,duration:1,
+   tiers:[{from:1,to:null,ppm:0,impl:30000}]},
+  {id:'ED_IMPL',name:'Implementation – Document Management',type:'implementation',metric:'N/A',startOffset:0,duration:1,
+   tiers:[{from:1,to:null,ppm:0,impl:20000}]},
+  {id:'CC_IMPL',name:'Implementation – Certify & Comply',type:'implementation',metric:'N/A',startOffset:0,duration:1,
+   tiers:[{from:1,to:null,ppm:0,impl:18000}]},
+  {id:'MIG_1000',name:'Data Migration – HR Core',type:'migration',metric:'N/A',startOffset:0,duration:2,
+   tiers:[{from:1,to:null,ppm:0,impl:15000}]},
+  {id:'MIG_2000',name:'Data Migration – Legacy Payroll',type:'migration',metric:'N/A',startOffset:0,duration:3,
+   tiers:[{from:1,to:null,ppm:0,impl:22000}]},
+  {id:'CUST_1000',name:'Custom Integration Development',type:'custom',metric:'N/A',startOffset:0,duration:3,
+   tiers:[{from:1,to:null,ppm:0,impl:25000}]},
+  {id:'CUST_2000',name:'Custom Reporting & Analytics Module',type:'custom',metric:'N/A',startOffset:0,duration:2,
+   tiers:[{from:1,to:null,ppm:0,impl:18000}]},
+];
+
+// track which cards are expanded in the library
+let libExpanded={license:true,implementation:true,migration:false,custom:false};
+let editingProdId=null;
+
+// ═══ PRICING LOGIC ═══════════════════════════════════════════════
+function getTier(p,emp){for(const t of p.tiers)if(t.from<=emp&&(t.to===null||emp<=t.to))return t;return p.tiers[p.tiers.length-1]}
+function calcYearly(p,emp){if(p._flat!==undefined)return p._flat;const t=getTier(p,emp);return t.ppm*(p.metric==='N/A'?1:emp)*12}
+function calcImpl(p){const base=p.tiers.reduce((s,t)=>s+(t.impl||0),0);return base||0}
+function fmt(n){return Number(n).toLocaleString('de-DE',{minimumFractionDigits:0,maximumFractionDigits:0})}
+function parseNum(v){if(v===''||v==null)return null;const n=parseFloat(String(v).replace(',','.'));return isNaN(n)?null:n;}
+function fmtD(n,d=2){return Number(n).toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d})}
+function addMonths(ds,m){if(!ds)return'—';const d=new Date(ds);d.setMonth(d.getMonth()+m);return d.toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'.')}
+function getProd(id){return library.find(p=>p.id===id)}
+
+// ═══ OFFER STATE ═════════════════════════════════════════════════
+let offers=[],currentId=null,logoDataUrl=null,vendorLogoDataUrl='data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCADIAMgDASIAAhEBAxEB/8QAHAAAAgMBAQEBAAAAAAAAAAAAAAIBAwcGBAgF/8QAMxABAAIAAwcDAwQCAgIDAAAAAQACAwQRBQYHITFBURJhcTNSgRMykbEUFWKhCCIjQsH/xAAbAQABBQEBAAAAAAAAAAAAAAACAAEDBAYFB//EACsRAAICAgIBAwMEAgMAAAAAAAABAgMEEQUScSExUUGBwQYTYdEi4SORsf/aAAwDAQACEQMRAD8A+iaHMnowpVQ0l+Hymgkwy/D7T1YfaebDnpw+0rSEerD7T1YXaeTD7T04TKsxHopHIlHlHJAwBoxFkkFjMaECEFDMJJIhHGJTWLGJD1jIREhJMI4zFYqaR0kMQLRUkVJamkVISZFKJSnOQktSKniGmRuJUkI6Qj9gOhytSXUOkQrLaE6kmdUsw56cPtKMOX05aSCQj0YbPThs81GX4bpK8hHqqzk8xxM3IwNruysXbuDXMVxP07WMO7hltdNG4ek93XQ7szjjPxPUxt293Mxy50zebw38NKJ/Cnwd2YlNHxn6aeTX+5kNx37L6+QWfctLVvUtWwiaicxIxPnjgpxQtsq2Du7vFjrs9SuVzN3Vy72pZ+zw9vjp9C1tW1S1URNROYk4HI8dbg2uuxeH8jMcZMU5yRlAEmENYRDBBhCyVq2sgHNXtEIhSotnQOas/Awt8d3MXPmSptOjiNvSPpt6V8FtNPzrpOI4ib6f5zibJ2ViJlTWuNjVfq+Qft8vf468DNFg8C7q+9za37L+zO5vOftWdaltL3PpP3kzNOHO+mn6eyNsYviuBmLP8Vs/0/hmlzjZeJZi2OE1/s7GLlQyoKcH5RDF0jyElYsNCNYrXSWsXSEmC4lTWEsSEfYPU5UD5jVI2jJDSdRstk0l1eWkqrLSRyHL8NmNcY+JimNu7u7mOXOmbzdH8NKJ/Cnwd2V8X+JK/rbvbvY/LnTNZuj+GlU/hT4O7Mbmp4Xg96yMhfyk/wD1gthCEJsRgmwcFOKFtlWwd3d4sddnqVyuZu6uXe1LP2eHt8dMfkhrKWfgVZtLrsXh/VMR9yUsWC1URNRHUSPr4nz1wV4nW2VbC3e3hzC5BSmVzN3VwHtSz9nh7fHT6Dpatqlq2ETUeok8t5Dj7cG112Lw/kZjSSRBSo2sgHNXtKIOgshVtZADVXoTJuI++3+dbE2TsjFTKmtcbGq/V8g/b5e/x1TiTvw5+2JsjZGKmUFrj41X6vmo/b5e/wAdc/Ga3huG66vvXhflmY5XlO26aX5ZcMYlQxyahozTQ00nhzvp9PZG2MXxXAzFn+K2f6fwzNhhKObhV5dbhNeH8FnEy54s1OD8o+k+XWTM04c76afp7I2xi8uVcDMWf4rZ/p/DNL9yYHLxLMWxwmvv8m5xMuGVBTg/K+Ah1hCVi0QmkJMIhtHMNYaS1CL6Z1OxMLWY9xd4ja/rbv7v4/LnTNZqj+GlU/hT4O7O74r4ufwNwNqYuzbYlcYpUbYevqKNwsmn/HXV7GrPmOaPgOOryG7rPXT9F/P8jMIQhNsMEISamsQgDWWVrJrWWVrAbEFazX+DPEq+zLYO728GOuRUrlszd1cB7Vs/Z4e3x0yWtZYGnNdA6soZ+FVmVOuxeH9UI+0i9fR6/WenTXXXlp51mR8S9+XP2xNj7HxUygtcfHq/V81H7fL3+OuO7M4w53DyFd0MfOLszX0Gabf+wdP01+z3/HSft1RBqiPMTvMxxnBRqtc7Wpafp8eWZzmc6yH/ABQWk/dlwxhlQxxmnaMs0WjGGVjGGA0M0WjGJWMYYDQLGmk8Od9dHD2PtjF5cq4GYs/xWz/T+GZsOsJRzcOvLrcJrw/gs4eXZi2KcH5R9KcupCfgcPcTN4m5+QvnW7itXnfq1LJVfxp+J+/PO7a/25uDe9PRv6rP3IKetbQQgEIBIfgNYqS2xESdFPZKV2qWq1sCJojzEmG8XOHTs1xdvbBwVyStsxl6mrg+bVPs8nb46bppItUtVrYETRHmJLuDnWYdneH3XyJ+p8cwmp8XOHVtm2xdu7CwFyStsxl6mrgve1T7PJ2+OmXVJ6Jh5teXWrIP+0wSK1ltSFay2tZYbERWstrWTUjlQNV0O8BsQAAryPecdvXvB+u2yORv/wDD0xMQf3+w+Pfv8dTeveD9dtkcjfTBOWJiD+/2Pb37/HXmJysrK3/jF+nyRSlv0QTudwN73JuHsvamIuWeWDjWfpeBfHv2+OnDQlKE3B7RTyMeF8HCaPoethBER5id44zLtwN73JuHsvamIuWdK4ONZ+l4F8e/b46adWwgiI8xO86ldisW0Y/KxZ40+svb6MuGOMqGMMJoqMuGMMqGOMBoFotGd/w63Lc9+ntba2FplTS2Dg2OeL4U+3wd/jqvDfctzzh7X2vhJlRLYODY+r4U+3wd/jrq5oAAAcgO0yXMcvrdFD8v8I0XFcT21dcvCJAAAAOQHaEITKGpDpCEIhaPxkiJLrERJeTJSlJCSxOviLYhJiKmparWwImiJqJMR4scO/8AXXxdubCwVyStsxl6mv6D3tU+zydvjpuP4i2rWw1sCJoicmXMHOsw7O8PuvkE+Ra1llSabxU4ff662LtvYmCuSVtj5epq4L3tU+3ydvjpm4AaroHVZ6Bi5teVWpwf9piIqAavIOqzjd694P122RyN9MHpiYg/v9j29+/x1neveD9f1ZHI30wemJiD+/2Pb37/AB15eVcrK3/jF+SGUt+iCEITnkYQhCIQTudwN8HJuHsvamKuWdDBxrP0vAvj37fHThoQ4TcHtEGRjwyIOE0fRFbCCIjzEjjMu3A3vcm4ey9qYi5Z0rg41n6XgXx79vjpp1bDpYdR5mk6ddisW0Y/KxZ40+svb6MuGaHw13JtnnD2vtfCTKGlsDBsc8XxZPt8Hf46rwz3Ic84e2NsYSZU0tgYFj6viyfb4O/x11w0AqAByA7TK81zOt0UPy/wjr8XxfbVtq9PoiagVK1ADkB2kyNYazImnRMJGsGIfQLCLrCIR+fYiNZekSxpLSYeylIiS5IiQ0xilIrLU1iX0qNrOgGqvaEmNsrxCvof1NPTo669NPefKnHTDytdoZi26g/67V/ySnQe/o/4ef8ArlNN4nb9u0LYmxdjYyZMWuPj1fqvetX7fL3+OudCcxNR7M2fCcRZCDtsbXZei/LODm8t0mo1+qXuYvCdbvju05b17R2dh64DzxMIP2e57e3b46clJLapVSaki/RfC6ClFhCEJGTBCEIhBCEIhBN5/wDHetXHy9t7Bdl6n+H6/Pb1/wDDx/3ynBcPNzXOuHtXauEmVNLYODY+r4U+3wd/jrqlKgAAByAOkk/Zc62ttbWvQTx4W67revbZ9M4bX0Ho09OnLTpp7SdfeZRw53ytkfRsnauIuVdK4ONZ54XgX7fD2+OmqVsII668xO8wuZh2YtjhP/v5J2tDw1i+qTrKmh9k6wkaxW0WhbGYRG0I+hbKUipHSKyVMWypIjLbEru1rVtZADVV0CHFjbKrpWrayAGqvQmL8Ut/v9jbF2LsTGTJi1x8er9Z71q/b5e/x1jitxB/2VsXYmw8ZMkLXMZirp+s961ft8vf465mM3HBcF1SyMhev0X5ZwOR5De6qn6fVloxxlQxxmwaOCyw0TRNR6j3nCb5btOWbbR2dh64DzxMKp+zynt7dvjp3QxjmJprqaIypkY8bo6ZPjZMqJ9o/dGLQnXb47tOWbbQ2dh64DzxMKp+zynt7dvjpyMz1tUqpNSRqaL4XwUosIQhIyYJ3nDzc1zrh7V2rhplRHBwbH1fCn2+Dv8AHWeHm5rnnD2rtXCTKmjg4Nj6vhT7fbv8ddUpQAAADQDtJ6qvqyWMd+rClQAANOQHaW1rCtZbWsnbJSK1ne8P97rZL9PZm1MRcs6GFi2fpeBfHh7fHTh611llSU8vGhkw6TX+hmtn0CWEERHmI9YLM13H3ptk/Rs7aOIuX6YWLZ54fgXx79vjpohiagjqPMSYjKw7MafSX2fyRtNMubHmQ3JS3iN5AoiLm+sJ5m8IXUR6rRWSsVjJDbFvYrVbIBzV5ATC+LfER2lfF2FsLGTJC1zGYq88Z71q/Z5e/wAddL4sYW0MfcHamHs0xLYzSratNfU0LDcNP+Oup3NSfMU2P6X4ym9vIs9er9F+Wcfk8qcNVx9E/dlgxh0lRHGegNHAZYMcZUMYYDQLLhjjKRjjpI2hmi0RETUeo95wm+W7X+M32js7D1wHVxcIP2e4ePbt8dO4GOImia69mVciiN0dMnxsidE+0fujFp3vDvc22dcPau1cNMqJbBwbH1fCn2+3f469bs7hO4lzeXFy6bO19ZlNOa/fp9nt/wDk6ilCoVqAHIPE4NcIuTW09M19DVkFPWthSoBWoAGgHaW1rCtZbWsnbLQVrLK1hWstrWA2IitZbWsK1loaQGxEFZ1u528rlfRkM9iLgdMPEX9ngfb37fHTk4Spk48MiHWY7S1o2b1iajqdRIrefj7qmPh7AytcyWMQq6Fuoauh/Gk/Rtb3mQlWozcd70QllrwlDaEXUR+qsVYqxVkKiVuw1nl1mNcW+HgOLt/YOBy52zWVoflvUP5Q+TvNgsxLWl/j863CtVlb8/yiK6qF0Osj5Ekk1nivw/BxdvbCwOXO2ay1D8t6n9n5Jks9R4/kKs6pWVvyvgzd9EqZdZFgxxlJHGXWiFlpHGVDGGA0Cy0ZoHDvc5ztsPa21cNMqaWwcGx9Xwp9vg7/AB1q4dbmudabW2rhplTS2Dg2OeL4U+3wd/jrqhpUKgAGgHaZLmOX1uml+X/R2MDA7assXhFtdCvoADTTTTlp4nEb2buf4zbP5DD1wHniYYfs9z29u3x07WrLKg8k1O4zMY+TOifaP3/k70ZdTIa10llazqN6t3f8dtncjTXAeeJhh+z3Pb27fHTna1mmoyIXw7RLCaa2iK1llaya1lgaSRscA0hCEEIJ126e737M/n8Pw4WFY/hT+iNuju5+zaGfw+XXCwrH8Kf0TrknBz+Q96635ZHKf0RFmVrGtK7TjIAW1oRbPWEPQ+j9NtFbStv7xW3vI1E5imWWtK22kht7xLWhKI6mTa0yLinuEDi7c2Hg8udszlqH5b1P7PyTV72lVmX8DMtw7VZW/K+QLa43R6yPleNVmn8T9xtLYu29iYPm2Yy9D8t6n9n5Jl09Kwc6rNqVkH5XwcG6mVUusiwZoPDncxzvo2ttbDTKmlsHBsfV8Kfb4O/x1ThvuU55w9r7XwkyppbBwbHPF8Kfb4O/x11fQAKmgcgO04HM8xrdFD8v8Iv4WEm1Of2QwBUKmgcgOWkYYgseprMeztpj1NWW0IlCXUrI5MJDUrqaJqPUZyG9G7zlm2eyVNcF54mGf/T3Pb+vjp2lK+0trTU0Tk9o9GVOifaJJFtGRBJnU73buWy3qz2RprgdcTDD9nue3t2+OnLTT4+RC+HaJYi01tBOy3Q3aX0bQ2hh+HCwrH8Kf0R9zd2F9G0do4fLk4WFY/hT+ido1nH5Hkt7qqflgSl9EUtYliXtecS1ZxFIBIosSqx3novWU3OsOLH0UX6Qk3ISZMfRd65DaV+qQ27xdTg9x28VYjbWLa0dRCUybWlTaFrRF5Q1EJSIszm8bcvdrF2g56+y8NxW3qT1WKL5ajp+NNJ0NmIsnqtsq24Sa37hNRlrstkGgFQADQDtIkrJr10gk0WSGstoRKkuoSOTJYsehL6ViYdZ6MOsglIliPSvSXUrIpXoS+ldSQSkGiK0E0TUeoz87C3a2Lh5szVcjUxB9QarUfOmun/U/YrWWFPMBXThtRbWw1srK+0Gsu9IdoNTSRdhaPO1ld6z02ryld6woyCSPLYlOIT1XrKMWsmix9HludYRsQhJk/QfR51itoQljRmCF94qwhHQ6Es84jCEJEsRF0irCEIkiR1jBzhCMyZFtOhL6GrCEhkTx9j0YdTWejDOkISvL3Jonpw6z0Ur0hCV5BouqaEYIQkLDROkNPaEIweiGvWVWrCEKIkU3Oc8+IcmEJPEI82J3hCEmQj/2Q==',selected=new Set(),offerCtr=1;
+
+function mkOffer(name){
+  const t=new Date(),v=new Date(t);v.setMonth(v.getMonth()+3);
+  return{id:'o'+Date.now()+'_'+Math.random(),name:name||'Offer '+offerCtr++,
+    clientName:'',contactName:'',offerDate:t.toISOString().split('T')[0],
+    validUntil:v.toISOString().split('T')[0],offerRef:'OFF-'+t.getFullYear()+'-00'+offerCtr,
+    employees:600,selected:[],overrides:{},discountPct:0,showListPrice:false,
+    notes:'',senderName:'PXMSOFT A/S',senderContact:'',logoDataUrl:null,vendorLogoDataUrl:null,currency:'EUR',attachments:[]}
+}
+function getCO(){return offers.find(o=>o.id===currentId)}
+
+function newOffer(){const o=mkOffer();const cur=getCO();if(cur){o.senderName=cur.senderName;o.senderContact=cur.senderContact;o.logoDataUrl=cur.logoDataUrl;o.vendorLogoDataUrl=cur.vendorLogoDataUrl}offers.push(o);saveState();switchToOffer(o.id)}
+function dupOffer(id,e){e.stopPropagation();const s=offers.find(o=>o.id===id);if(!s)return;const o=JSON.parse(JSON.stringify(s));o.id='o'+Date.now();o.name=s.name+' (copy)';offers.push(o);saveState();switchToOffer(o.id)}
+function delOffer(id,e){e.stopPropagation();if(offers.length<=1)return;offers=offers.filter(o=>o.id!==id);saveState();if(currentId===id)switchToOffer(offers[offers.length-1].id);else{renderOffersList();renderOfferTabs()}}
+
+function switchToOffer(id){currentId=id;const o=getCO();if(!o)return;loadUI(o);renderOffersList();renderOfferTabs();renderPicklist();renderOverrides();render()}
+
+function loadUI(o){
+  document.getElementById('clientName').value=o.clientName||'';
+  document.getElementById('contactName').value=o.contactName||'';
+  document.getElementById('offerDate').value=o.offerDate||'';
+  document.getElementById('validUntil').value=o.validUntil||'';
+  document.getElementById('offerRef').value=o.offerRef||'';
+  document.getElementById('empNum').value=o.employees;
+  document.getElementById('discSlider').value=o.discountPct;
+  document.getElementById('discNum').value=o.discountPct;
+  document.getElementById('showList').checked=o.showListPrice;
+  document.getElementById('notes').value=o.notes||'';
+  document.getElementById('senderName').value=o.senderName||'';
+  document.getElementById('senderContact').value=o.senderContact||'';
+
+  logoDataUrl=o.logoDataUrl||null;
+  if(logoDataUrl){
+    const isUrl=logoDataUrl.startsWith('http');setLogoTab(isUrl?'url':'up');
+    if(isUrl){document.getElementById('logoUrl').value=logoDataUrl;document.getElementById('logoUrlImg').src=logoDataUrl;document.getElementById('logoUrlPrv').style.display='flex'}
+    else{document.getElementById('logoPrvI').src=logoDataUrl;document.getElementById('logoPrvW').style.display='flex';document.getElementById('logoPlh').style.display='none'}
+  }else{setLogoTab('up');document.getElementById('logoPrvW').style.display='none';document.getElementById('logoPlh').style.display='block';document.getElementById('logoUrl').value='';document.getElementById('logoUrlPrv').style.display='none'}
+  selected=new Set(o.selected||[]);
+  const currEl=document.getElementById('currency');if(currEl)currEl.value=o.currency||'EUR';
+  // vendor logo
+  const vl=o.vendorLogoDataUrl||null;
+  const vThumb=document.getElementById('vendorLogoThumb');
+  const vPlh=document.getElementById('vendorLogoPlh');
+  const vRem=document.getElementById('vendorLogoRemove');
+  if(vThumb&&vPlh&&vRem){
+    if(vl){vThumb.src=vl;vThumb.style.display='block';vPlh.style.display='none';vRem.style.display='block';}
+    else{vThumb.style.display='none';vPlh.style.display='block';vRem.style.display='none';}
+  }
+}
+
+function uco(){
+  const o=getCO();if(!o)return;
+  o.clientName=document.getElementById('clientName').value;
+  o.contactName=document.getElementById('contactName').value;
+  o.offerDate=document.getElementById('offerDate').value;
+  o.validUntil=document.getElementById('validUntil').value;
+  o.offerRef=document.getElementById('offerRef').value;
+  o.employees=parseInt(document.getElementById('empNum').value)||1;
+  o.discountPct=parseFloat(document.getElementById('discNum').value)||0;
+  o.showListPrice=document.getElementById('showList').checked;
+  o.notes=document.getElementById('notes').value;
+  o.senderName=document.getElementById('senderName').value;
+  o.senderContact=document.getElementById('senderContact').value;
+  o.selected=[...selected];o.logoDataUrl=logoDataUrl;o.currency=document.getElementById('currency').value||'EUR';o.vendorLogoDataUrl=vendorLogoDataUrl;
+  if(o.clientName)o.name=o.clientName+(o.offerRef?' · '+o.offerRef:'');
+  saveState();
+  renderOffersList();renderOfferTabs();render()
+}
+
+// ═══ OFFERS LIST + TABS ══════════════════════════════════════════
+// ─── PERSISTENCE ──────────────────────────────────────────────────
+// ─── ZOHO / STORAGE ──────────────────────────────────────────────
+// ZOHO_NOTE_RECORD_ID: set this after creating your "Price Engine Data" Contact in Zoho CRM
+// Steps: 1) Create a Contact in Zoho CRM named "Price Engine Data"
+//         2) Copy its Record ID from the URL and paste below
+const ZOHO_NOTE_RECORD_ID = '924054000001282010'
+const ZOHO_NOTE_TITLE = 'PricingEngineState_v2';
+let zohoMode = false; // true when running inside Zoho widget
+let zohoNoteId = null; // ID of the Note record used as DB
+let saveTimer = null;
+
+function saveState(){
+  const state={offers,currentId,vendorLogoDataUrl};
+  const json=JSON.stringify(state);
+  // Always save to localStorage as fallback
+  try{localStorage.setItem('pricingEngine_v2',json);}catch(e){}
+  // If in Zoho mode, also save to CRM Note (debounced 1.5s to avoid hammering API)
+  if(zohoMode && ZOHO_NOTE_RECORD_ID){
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(()=>{saveToZoho(json);showSyncStatus('✓ Saved to Zoho CRM','#2c4a6e');},1500);
+  }
+}
+
+function saveToZoho(json){
+  if(zohoNoteId){
+    // Update existing note
+    ZOHO.CRM.API.updateRecord({
+      Entity:'Notes',
+      RecordID:zohoNoteId,
+      APIData:{id:zohoNoteId,Note_Content:json},
+      Trigger:[]
+    }).then(r=>console.log('Zoho save:',r)).catch(e=>console.warn('Zoho save error:',e));
+  } else {
+    // Create new note on the anchor record
+    ZOHO.CRM.API.addNotes({
+      Entity:'Contacts',
+      RecordID:ZOHO_NOTE_RECORD_ID,
+      Title:ZOHO_NOTE_TITLE,
+      Content:json
+    }).then(r=>{
+      if(r&&r.code==='SUCCESS') zohoNoteId=r.details.id;
+      console.log('Zoho note created:',r);
+    }).catch(e=>console.warn('Zoho create error:',e));
+  }
+}
+
+function loadFromZoho(){
+  return new Promise((resolve)=>{
+    if(!ZOHO_NOTE_RECORD_ID){resolve(false);return;}
+    ZOHO.CRM.API.getRelatedRecords({
+      Entity:'Contacts',
+      RecordID:ZOHO_NOTE_RECORD_ID,
+      RelatedList:'Notes',
+      page:1,
+      per_page:50
+    }).then(data=>{
+      const notes=Array.isArray(data)?data:(data&&data.data?data.data:[]);
+      const note=notes.find(n=>n.Note_Title===ZOHO_NOTE_TITLE);
+      if(note&&note.Note_Content){
+        zohoNoteId=note.id;
+        try{
+          const state=JSON.parse(note.Note_Content);
+          if(state.offers&&state.offers.length){
+            offers=state.offers;
+            currentId=state.currentId||state.offers[0].id;
+            if(state.vendorLogoDataUrl)vendorLogoDataUrl=state.vendorLogoDataUrl;
+            // Also update localStorage
+            try{localStorage.setItem('pricingEngine_v2',note.Note_Content);}catch(e){}
+            resolve(true);return;
+          }
+        }catch(e){console.warn('Parse error:',e);}
+      }
+      resolve(false);
+    }).catch(e=>{console.warn('Zoho load error:',e);resolve(false);});
+  });
+}
+
+function loadState(){
+  try{
+    const raw=localStorage.getItem('pricingEngine_v2');
+    if(!raw)return false;
+    const state=JSON.parse(raw);
+    if(state.offers&&state.offers.length){
+      offers=state.offers;
+      currentId=state.currentId||state.offers[0].id;
+      if(state.vendorLogoDataUrl)vendorLogoDataUrl=state.vendorLogoDataUrl;
+      return true;
+    }
+  }catch(e){console.warn('Load failed:',e);}
+  return false;
+}
+
+function showSyncStatus(msg,color){
+  let el=document.getElementById('syncStatus');
+  if(!el){el=document.createElement('div');el.id='syncStatus';
+    el.style.cssText='position:fixed;bottom:12px;right:12px;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:600;z-index:9999;transition:opacity .5s';
+    document.body.appendChild(el);}
+  el.style.background=color||'#2c4a6e';el.style.color='#fff';el.style.opacity='1';
+  el.textContent=msg;
+  setTimeout(()=>{el.style.opacity='0';},2500);
+}
+
+function renderOffersList(){
+  const searchEl=document.getElementById('offerSearch');
+  const q=(searchEl?searchEl.value||'':'').toLowerCase();
+  const countEl=document.getElementById('offersCount');
+  // Sort newest first (by id timestamp)
+  const sorted=[...offers].sort((a,b)=>b.id.localeCompare(a.id));
+  const filtered=q?sorted.filter(o=>o.name.toLowerCase().includes(q)||(o.clientName||'').toLowerCase().includes(q)):sorted;
+  if(countEl)countEl.textContent=offers.length+' offer'+(offers.length!==1?'s':'');
+  document.getElementById('offersList').innerHTML=filtered.map(o=>{
+    const act=o.id===currentId;const emp=o.employees||600;
+    const total=library.filter(p=>(o.selected||[]).includes(p.id)).reduce((s,p)=>{
+      const ov=(o.overrides||{})[p.id]||{};
+      return s+(ov.lic!=null?ov.lic:calcYearly(p,emp))+(ov.impl!=null?ov.impl:calcImpl(p))
+    },0)*(1-(o.discountPct||0)/100);
+    const dateStr=o.offerDate?new Date(o.offerDate).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'2-digit'}):'';
+    return`<div class="offer-item${act?' aof':''}" onclick="switchToOffer('${o.id}')">
+      <div class="pinfo">
+        <div class="pname">${o.name}</div>
+        <div class="pmeta">${emp.toLocaleString()} emp · ${CURRENCY_SYMBOLS[o.currency||'EUR']||'€'}${fmt(total)}/yr${dateStr?' · '+dateStr:''}</div>
+      </div>
+      <div class="oi-acts">
+        <button class="ibt" title="Duplicate" onclick="dupOffer('${o.id}',event)"><svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="4" y="4" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M1 9V2a1 1 0 0 1 1-1h7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
+        <button class="ibt" title="Delete" onclick="delOffer('${o.id}',event)"><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="2" y1="2" x2="10" y2="10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+      </div>
+    </div>`
+  }).join('')||(q?'<div style="padding:8px;font-size:11px;color:#bbb;text-align:center">No offers match</div>':'<div style="padding:8px;font-size:11px;color:#bbb;text-align:center">No offers yet</div>');
+}
+function renderOfferTabs(){
+  const bar=document.getElementById('offerTabs');
+  if(offers.length<=1){bar.style.display='none';return}
+  bar.style.display='flex';
+  bar.innerHTML=offers.map(o=>`<button class="otab${o.id===currentId?' active':''}" onclick="switchToOffer('${o.id}')">${o.name}</button>`).join('')
+}
+
+// ═══ PRODUCT PICKLIST (from library) ═════════════════════════════
+function renderPicklist(){
+  const o=getCO();const emp=o?o.employees:600;
+  const cur=csym(o);
+  const container=document.getElementById('productPicklist');
+  container.innerHTML='';
+
+  TYPES.forEach(t=>{
+    const prods=library.filter(p=>p.type===t);
+    if(!prods.length)return;
+    const isLic=t==='license';
+
+    // Table wrapper
+    const tbl=document.createElement('table');
+    tbl.className='pick-tbl';
+
+    // Header
+    const hdr=document.createElement('thead');
+    hdr.innerHTML=`<tr>
+      <th style="width:18px"></th>
+      <th>Product</th>
+      ${isLic?'<th style="width:72px">PEPM</th>':''}
+      <th style="width:84px">${isLic?'Yearly':'Fee'}</th>
+    </tr>`;
+    tbl.appendChild(hdr);
+
+    const tbody=document.createElement('tbody');
+
+    // Type group header row
+    const ghdr=document.createElement('tr');
+    ghdr.className='pick-type-hdr';
+    ghdr.innerHTML=`<td></td><td colspan="${isLic?3:2}"><span class="tb ${TYPE_BADGE[t]}">${TYPE_NAMES[t]}</span> ${TYPE_LABELS[t]}</td>`;
+    tbody.appendChild(ghdr);
+
+    prods.forEach(p=>{
+      const sel=selected.has(p.id);
+      const ov=(o&&o.overrides&&o.overrides[p.id])||{};
+      const tier=getTier(p,emp);
+      const catalogPepm=tier?tier.ppm:0;
+      const catalogYearly=calcYearly(p,emp);
+      const hasPepmOv=ov.pepm!=null;
+      const hasLicOv=ov.lic!=null&&ov.pepm==null;
+      const hasImplOv=ov.impl!=null;
+      const hasAnyOv=hasPepmOv||hasLicOv;
+      const activePepm=hasPepmOv?ov.pepm:(hasLicOv&&emp>0?ov.lic/emp/12:catalogPepm);
+      const activeYearly=hasPepmOv?(ov.pepm*emp*12):(hasLicOv?ov.lic:catalogYearly);
+      const implEff=hasImplOv?ov.impl:calcImpl(p);
+
+      // Main row
+      const tr=document.createElement('tr');
+      tr.className=sel?'pick-sel':'pick-dis';
+
+      // Checkbox cell
+      const tdChk=document.createElement('td');
+      const chk=document.createElement('input');
+      chk.type='checkbox';chk.className='pick-chk';chk.checked=sel;
+      chk.addEventListener('change',()=>toggleProd(p.id));
+      tdChk.appendChild(chk);tr.appendChild(tdChk);
+
+      // Name cell
+      const tdName=document.createElement('td');
+      tdName.style.cssText='font-size:11px;font-weight:'+(sel?'600':'400')+';line-height:1.3';
+      tdName.textContent=p.name;
+      tr.appendChild(tdName);
+
+      // PEPM input cell (license only)
+      if(isLic){
+        const tdPepm=document.createElement('td');
+        const inp=document.createElement('input');
+        inp.className='pick-inp'+(hasPepmOv?' has-val':'');
+        inp.type='text';
+        inp.inputMode='decimal';
+        inp.placeholder=fmtD(catalogPepm,3);
+        inp.title='Price per employee per month (e.g. 0.72 or 0,72)';
+        inp.style.cssText='width:100%;padding:3px 5px;border:1px solid '+(hasPepmOv?'#185fa5':'#ddd')+';border-radius:4px;font-size:11px;background:'+(hasPepmOv?'#f0f6ff':'#fafaf8')+';outline:none;text-align:right';
+        if(hasPepmOv) inp.value=String(ov.pepm).replace('.',',');
+        if(!sel) inp.disabled=true;
+        inp.addEventListener('input',function(){
+          const n=parseNum(this.value);
+          if(!o.overrides)o.overrides={};if(!o.overrides[p.id])o.overrides[p.id]={};
+          if(n===null){o.overrides[p.id].pepm=null;}
+          else{o.overrides[p.id].pepm=n;o.overrides[p.id].lic=null;}
+          // Update formula row in-place
+          updatePickFormula(p.id,emp,o);
+          renderOverrides();render();renderOffersList();renderOfferTabs();
+          o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+        });
+        tdPepm.appendChild(inp);tr.appendChild(tdPepm);
+      }
+
+      // Yearly / fee input cell
+      const tdYr=document.createElement('td');
+      const inpYr=document.createElement('input');
+      inpYr.id='pick-yearly-'+p.id;
+      inpYr.className='pick-inp'+((isLic&&hasLicOv)||(!isLic&&hasImplOv)?' has-val':'');
+      inpYr.type='number';
+      inpYr.step=isLic?'10':'500';
+      inpYr.min='0';
+      inpYr.placeholder=fmt(isLic?catalogYearly:implEff);
+      inpYr.style.cssText='width:100%;padding:3px 5px;border:1px solid '+((isLic&&hasLicOv)||(!isLic&&hasImplOv)?'#185fa5':'#ddd')+';border-radius:4px;font-size:11px;background:'+((isLic&&hasLicOv)||(!isLic&&hasImplOv)?'#f0f6ff':'#fafaf8')+';outline:none;text-align:right';
+      if(isLic&&hasLicOv) inpYr.value=ov.lic;
+      if(!isLic&&hasImplOv) inpYr.value=ov.impl;
+      if(!sel) inpYr.disabled=true;
+      inpYr.addEventListener('input',function(){
+        const val=this.value;
+        if(!o.overrides)o.overrides={};if(!o.overrides[p.id])o.overrides[p.id]={};
+        if(isLic){
+          if(val===''){o.overrides[p.id].lic=null;}
+          else{o.overrides[p.id].lic=parseFloat(val);o.overrides[p.id].pepm=null;}
+          updatePickFormula(p.id,emp,o);
+        } else {
+          o.overrides[p.id].impl=val===''?null:parseFloat(val);
+        }
+        renderOverrides();render();renderOffersList();renderOfferTabs();
+        o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+      });
+      tdYr.appendChild(inpYr);tr.appendChild(tdYr);
+      tbody.appendChild(tr);
+
+      // Formula row for license (always shown when selected)
+      if(isLic&&sel){
+        const trF=document.createElement('tr');
+        trF.className='pick-sel';
+        const tdF=document.createElement('td');
+        tdF.colSpan=4;
+        tdF.id='pick-formula-'+p.id;
+        tdF.style.cssText='padding:1px 6px 6px 0;font-size:10px;color:'+(hasAnyOv?'#185fa5':'#bbb');
+        tdF.innerHTML=cur+' '+fmtD(activePepm,3)+' × '+emp.toLocaleString()+' × 12 = '+(hasAnyOv?'<strong>'+cur+' '+fmt(activeYearly)+'/yr</strong>':cur+' '+fmt(activeYearly)+'/yr');
+        trF.appendChild(tdF);
+        tbody.appendChild(trF);
+      }
+    });
+
+    tbl.appendChild(tbody);
+    container.appendChild(tbl);
+  });
+}
+
+function toggleProd(id){if(selected.has(id))selected.delete(id);else selected.add(id);
+  renderPicklist();renderOverrides();uco()
+}
+function pickSetPepm(pid,val,emp){
+  const o=getCO();if(!o)return;
+  if(!o.overrides)o.overrides={};if(!o.overrides[pid])o.overrides[pid]={};
+  const n=parseNum(val);
+  if(n===null){o.overrides[pid].pepm=null;}
+  else{o.overrides[pid].pepm=n;o.overrides[pid].lic=null;}
+  // Update formula line without re-rendering the whole picklist (keeps input focus)
+  updatePickFormula(pid,emp,o);
+  renderOverrides();render();renderOffersList();renderOfferTabs();
+  // Save selected state
+  o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+}
+function pickSetLic(pid,val,emp){
+  const o=getCO();if(!o)return;
+  if(!o.overrides)o.overrides={};if(!o.overrides[pid])o.overrides[pid]={};
+  if(val===''||val===null){o.overrides[pid].lic=null;}
+  else{o.overrides[pid].lic=parseFloat(val);o.overrides[pid].pepm=null;}
+  updatePickFormula(pid,emp,o);
+  renderOverrides();render();renderOffersList();renderOfferTabs();
+  o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+}
+function pickSetImpl(pid,val){
+  const o=getCO();if(!o)return;
+  if(!o.overrides)o.overrides={};if(!o.overrides[pid])o.overrides[pid]={};
+  o.overrides[pid].impl=val===''?null:parseFloat(val);
+  renderOverrides();render();renderOffersList();renderOfferTabs();
+  o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+}
+
+function updatePickFormula(pid,emp,o){
+  const el=document.getElementById('pick-formula-'+pid);
+  if(!el)return;
+  const p=library.find(x=>x.id===pid);if(!p)return;
+  const ov=(o.overrides&&o.overrides[pid])||{};
+  const tier=getTier(p,emp);
+  const catalogPepm=tier?tier.ppm:0;
+  const hasPepmOv=ov.pepm!=null;
+  const hasLicOv=ov.lic!=null&&ov.pepm==null;
+  const hasAnyOv=hasPepmOv||hasLicOv;
+  const activePepm=hasPepmOv?ov.pepm:(hasLicOv&&emp>0?ov.lic/emp/12:catalogPepm);
+  const activeYearly=hasPepmOv?(ov.pepm*emp*12):(hasLicOv?ov.lic:calcYearly(p,emp));
+  const cur=csym(o);
+  el.style.color=hasAnyOv?'#185fa5':'#bbb';
+  el.innerHTML=cur+' '+fmtD(activePepm,3)+' × '+emp.toLocaleString()+' × 12 = '+(hasAnyOv?'<strong>'+cur+' '+fmt(activeYearly)+'/yr</strong>':cur+' '+fmt(activeYearly)+'/yr');
+  // also update yearly input placeholder
+  const yel=document.getElementById('pick-yearly-'+pid);
+  if(yel&&!hasLicOv)yel.placeholder=fmt(activeYearly);
+}
+
+// ═══ OVERRIDES ════════════════════════════════════════════════════
+function renderOverrides(){
+  const o=getCO();const selProds=library.filter(p=>selected.has(p.id));
+  const sec=document.getElementById('ovSection');
+  if(!selProds.length){sec.style.display='none';return}
+  sec.style.display='block';
+  const emp=o?o.employees:600;
+  const cur=csym(o);
+  const container=document.getElementById('ovRows');
+  container.innerHTML='';
+
+  selProds.forEach(p=>{
+    const y=calcYearly(p,emp),impl=calcImpl(p);
+    const ov=(o&&o.overrides&&o.overrides[p.id])||{};
+    const wrap=document.createElement('div');
+
+    if(p.type==='license'){
+      const tier=getTier(p,emp);
+      const catalogPepm=tier&&tier.ppm>0?tier.ppm:0;
+      const effYearly=ov.pepm!=null?ov.pepm*emp*12:(ov.lic!=null?ov.lic:y);
+      const effYears=ov.years!=null?ov.years:(p.duration?Math.round(p.duration/12):3);
+      const effPepm=ov.pepm!=null?ov.pepm:(ov.lic!=null&&emp>0?ov.lic/emp/12:catalogPepm);
+      const hasAnyOv=ov.pepm!=null||ov.lic!=null;
+      wrap.className='ov-row ov-row-lic';
+
+      const lbl=document.createElement('div');
+      lbl.className='ov-lbl';
+      lbl.style.cssText='font-size:11px;font-weight:700;color:#444;margin-bottom:4px';
+      lbl.textContent=p.name;
+      wrap.appendChild(lbl);
+
+      const sub=document.createElement('div');
+      sub.className='ov-sub';
+
+      // PEPM
+      const colP=document.createElement('div');
+      const lblP=document.createElement('div');lblP.className='ov-field-lbl';lblP.textContent='PEPM ('+cur+'/emp/mo)';
+      const inpP=document.createElement('input');
+      inpP.className='ov-inp';inpP.type='text';inpP.inputMode='decimal';
+      inpP.placeholder=fmtD(catalogPepm,3);inpP.id='ov-pepm-'+p.id;
+      if(ov.pepm!=null) inpP.value=String(ov.pepm).replace('.',',');
+      inpP.addEventListener('input',function(){
+        const n=parseNum(this.value);
+        if(!o.overrides)o.overrides={};if(!o.overrides[p.id])o.overrides[p.id]={};
+        if(n===null){o.overrides[p.id].pepm=null;}
+        else{o.overrides[p.id].pepm=n;o.overrides[p.id].lic=null;const li=document.getElementById('ov-lic-'+p.id);if(li)li.value='';}
+        updateOvFormula(p.id,emp,o);render();renderOffersList();renderOfferTabs();
+        o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+      });
+      colP.appendChild(lblP);colP.appendChild(inpP);
+
+      // Yearly
+      const colL=document.createElement('div');
+      const lblL=document.createElement('div');lblL.className='ov-field-lbl';lblL.textContent='Yearly fee ('+cur+')';
+      const inpL=document.createElement('input');
+      inpL.className='ov-inp';inpL.type='number';inpL.step='100';
+      inpL.placeholder=fmt(y);inpL.id='ov-lic-'+p.id;
+      if(ov.lic!=null&&ov.pepm==null) inpL.value=ov.lic;
+      inpL.addEventListener('input',function(){
+        if(!o.overrides)o.overrides={};if(!o.overrides[p.id])o.overrides[p.id]={};
+        if(this.value===''){o.overrides[p.id].lic=null;}
+        else{o.overrides[p.id].lic=parseFloat(this.value);o.overrides[p.id].pepm=null;const pi=document.getElementById('ov-pepm-'+p.id);if(pi)pi.value='';}
+        updateOvFormula(p.id,emp,o);render();renderOffersList();renderOfferTabs();
+        o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+      });
+      colL.appendChild(lblL);colL.appendChild(inpL);
+
+      // Years
+      const colY=document.createElement('div');
+      const lblY=document.createElement('div');lblY.className='ov-field-lbl mu';lblY.textContent='Years';
+      const inpY=document.createElement('input');
+      inpY.className='ov-inp';inpY.type='number';inpY.step='1';inpY.min='1';inpY.max='10';
+      inpY.placeholder=String(effYears);
+      if(ov.years!=null) inpY.value=ov.years;
+      inpY.addEventListener('input',function(){
+        if(!o.overrides)o.overrides={};if(!o.overrides[p.id])o.overrides[p.id]={};
+        o.overrides[p.id].years=this.value===''?null:parseInt(this.value);
+        render();renderOffersList();renderOfferTabs();
+        o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+      });
+      colY.appendChild(lblY);colY.appendChild(inpY);
+
+      sub.appendChild(colP);sub.appendChild(colL);sub.appendChild(colY);
+      wrap.appendChild(sub);
+
+      const fml=document.createElement('div');
+      fml.id='ov-formula-'+p.id;
+      fml.style.cssText='margin-top:4px;font-size:10px;color:'+(hasAnyOv?'#185fa5':'#aaa');
+      fml.innerHTML='→ '+cur+' '+fmtD(effPepm,3)+' × '+emp.toLocaleString()+' emp × 12 = '+(hasAnyOv?'<strong>'+cur+' '+fmt(effYearly)+'/yr</strong>':cur+' '+fmt(effYearly)+'/yr');
+      wrap.appendChild(fml);
+
+      // Date overrides
+      const dateRow=document.createElement('div');
+      dateRow.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px';
+      ['startDate','endDate'].forEach(function(field){
+        const col=document.createElement('div');
+        const lbl=document.createElement('div');
+        lbl.className='ov-field-lbl mu';
+        lbl.textContent=field==='startDate'?'Start date':'End date';
+        const inp=document.createElement('input');
+        inp.className='ov-inp';inp.type='text';
+        inp.placeholder='DD.MM.YYYY or TBD';
+        inp.style.cssText='width:100%;font-size:11px';
+        if(ov[field]!=null) inp.value=ov[field];
+        inp.addEventListener('input',function(){
+          if(!o.overrides)o.overrides={};if(!o.overrides[p.id])o.overrides[p.id]={};
+          o.overrides[p.id][field]=this.value===''?null:this.value;
+          render();renderOffersList();renderOfferTabs();
+          o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+        });
+        col.appendChild(lbl);col.appendChild(inp);
+        dateRow.appendChild(col);
+      });
+      wrap.appendChild(dateRow);
+
+    } else {
+      wrap.className='ov-row ov-row-other';
+      const lbl=document.createElement('div');lbl.className='ov-lbl';lbl.title=p.name;lbl.textContent=p.name;
+      wrap.appendChild(lbl);
+      if(impl>0){
+        const col=document.createElement('div');
+        const lblF=document.createElement('div');lblF.className='ov-field-lbl mu';lblF.textContent='One-time fee';
+        const inp=document.createElement('input');inp.className='ov-inp';inp.type='number';inp.step='100';
+        inp.placeholder=fmt(impl);
+        if(ov.impl!=null) inp.value=ov.impl;
+        inp.addEventListener('input',function(){
+          if(!o.overrides)o.overrides={};if(!o.overrides[p.id])o.overrides[p.id]={};
+          o.overrides[p.id].impl=this.value===''?null:parseFloat(this.value);
+          render();renderOffersList();renderOfferTabs();
+          o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+        });
+        col.appendChild(lblF);col.appendChild(inp);wrap.appendChild(col);
+      } else {
+        const d=document.createElement('div');d.style.cssText='font-size:11px;color:#ddd;padding-top:14px';d.textContent='—';wrap.appendChild(d);
+      }
+      // Date overrides for non-license
+      const dateRow2=document.createElement('div');
+      dateRow2.style.cssText='display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:7px';
+      ['startDate','endDate'].forEach(function(field){
+        const col=document.createElement('div');
+        const lbl=document.createElement('div');lbl.className='ov-field-lbl mu';
+        lbl.textContent=field==='startDate'?'Start date':'End date';
+        const inp=document.createElement('input');
+        inp.className='ov-inp';inp.type='text';
+        inp.placeholder='DD.MM.YYYY or TBD';inp.style.cssText='width:100%;font-size:11px';
+        if(ov[field]!=null) inp.value=ov[field];
+        inp.addEventListener('input',function(){
+          if(!o.overrides)o.overrides={};if(!o.overrides[p.id])o.overrides[p.id]={};
+          o.overrides[p.id][field]=this.value===''?null:this.value;
+          render();renderOffersList();renderOfferTabs();
+          o.selected=[...selected];o.logoDataUrl=logoDataUrl;
+        });
+        col.appendChild(lbl);col.appendChild(inp);dateRow2.appendChild(col);
+      });
+      wrap.appendChild(dateRow2);
+    }
+    container.appendChild(wrap);
+  });
+}
+
+function updateOvFormula(pid,emp,o){
+  const el=document.getElementById('ov-formula-'+pid);if(!el)return;
+  const p=library.find(x=>x.id===pid);if(!p)return;
+  const ov=(o.overrides&&o.overrides[pid])||{};
+  const tier=getTier(p,emp);const catalogPepm=tier?tier.ppm:0;
+  const hasPepmOv=ov.pepm!=null,hasLicOv=ov.lic!=null&&ov.pepm==null;
+  const hasAnyOv=hasPepmOv||hasLicOv;
+  const effPepm=hasPepmOv?ov.pepm:(hasLicOv&&emp>0?ov.lic/emp/12:catalogPepm);
+  const effYearly=hasPepmOv?(ov.pepm*emp*12):(hasLicOv?ov.lic:calcYearly(p,emp));
+  const cur=csym(o);
+  el.style.color=hasAnyOv?'#185fa5':'#aaa';
+  el.innerHTML='→ '+cur+' '+fmtD(effPepm,3)+' × '+emp.toLocaleString()+' emp × 12 = '+(hasAnyOv?'<strong>'+cur+' '+fmt(effYearly)+'/yr</strong>':cur+' '+fmt(effYearly)+'/yr');
+}
+
+function getEff(p,emp,o){
+  const ov=(o&&o.overrides&&o.overrides[p.id])||{};
+  let lic;
+  if(ov.pepm!=null) lic=ov.pepm*emp*12;
+  else if(ov.lic!=null) lic=ov.lic;
+  else lic=calcYearly(p,emp);
+  return{lic,impl:ov.impl!=null?ov.impl:calcImpl(p)}
+}
+
+// ═══ PRODUCT LIBRARY ═════════════════════════════════════════════
+function renderLibrary(){
+  const search=(document.getElementById('libSearch').value||'').toLowerCase();
+  const typeFilter=document.getElementById('libTypeFilter').value;
+  let html='';
+  TYPES.forEach(t=>{
+    const prods=library.filter(p=>{
+      if(typeFilter&&p.type!==typeFilter)return false;
+      if(search&&!p.name.toLowerCase().includes(search)&&!p.id.toLowerCase().includes(search))return false;
+      return p.type===t;
+    });
+    if(!prods.length&&(typeFilter||search))return;
+    const allProds=typeFilter||search?prods:library.filter(p=>p.type===t);
+    if(!allProds.length)return;
+    const exp=libExpanded[t];
+    html+=`<div class="lib-type-section">
+      <div class="lib-type-header${exp?' open':''}" onclick="libExpanded['${t}']=!libExpanded['${t}'];renderLibrary()">
+        <span class="tb ${TYPE_BADGE[t]}">${TYPE_NAMES[t]}</span>
+        <span class="lth-label">${TYPE_LABELS[t]}</span>
+        <span class="lth-count">${allProds.length} product${allProds.length!==1?'s':''}</span>
+        <span class="lth-arrow">▶</span>
+      </div>
+      <div class="lib-products">`;
+    allProds.forEach(p=>{
+      const isEdit=editingProdId===p.id;
+      const emp=parseInt(document.getElementById('empNum').value)||600;
+      const y=calcYearly(p,emp),impl=calcImpl(p);
+      const disp=y>0?y:impl;
+      const typeOpts=TYPES.map(tp=>`<option value="${tp}"${p.type===tp?' selected':''}>${TYPE_NAMES[tp]}</option>`).join('');
+      html+=`<div class="lib-product-card${isEdit?' editing':''}" id="lpc_${p.id}">
+        <div class="lpc-header" onclick="toggleEdit('${p.id}')">
+          <div class="pinfo">
+            <div class="lpc-name">${p.name}</div>
+            <div class="lpc-meta">${p.id} · ${p.metric} · ${csym(getCO())}${fmt(disp)}/yr · ${p.tiers.length} tier${p.tiers.length!==1?'s':''}</div>
+          </div>
+          <div class="lpc-actions" onclick="event.stopPropagation()">
+            <button class="lpc-btn" onclick="toggleEdit('${p.id}')">${isEdit?'Done':'Edit'}</button>
+            <button class="lpc-btn danger" onclick="delLibProd('${p.id}')">Delete</button>
+          </div>
+        </div>`;
+      if(isEdit){
+        const pi=library.findIndex(x=>x.id===p.id);
+        html+=`<div class="lpc-editor">
+          <div class="lpc-ef">
+            <div class="field"><label>Product name</label><input type="text" value="${p.name}" onchange="library[${pi}].name=this.value;renderPicklist();renderOverrides();render();renderLibrary()"></div>
+            <div class="field"><label>Product ID</label><input type="text" value="${p.id}" onchange="renameId('${p.id}',this.value)"></div>
+          </div>
+          <div class="lpc-ef">
+            <div class="field"><label>Type</label><select onchange="library[${pi}].type=this.value;renderPicklist();render();renderLibrary()">${typeOpts}</select></div>
+            <div class="field"><label>Metric</label><input type="text" value="${p.metric}" onchange="library[${pi}].metric=this.value;renderPicklist();render()"></div>
+          </div>
+          <div class="lpc-ef">
+            <div class="field"><label>Start offset (months)</label><input type="number" value="${p.startOffset}" onchange="library[${pi}].startOffset=+this.value;render()"></div>
+            <div class="field"><label>Duration (months)</label><input type="number" value="${p.duration}" onchange="library[${pi}].duration=+this.value;render()"></div>
+          </div>
+          <div style="margin-top:8px">
+            <div style="font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#aaa;margin-bottom:4px">Volume tiers</div>
+            <table class="tier-table">
+              <thead><tr><th>From</th><th>To (∞=blank)</th><th>x/mo/unit</th><th>Yearly</th><th>Impl.</th><th></th></tr></thead>
+              <tbody>`;
+        p.tiers.forEach((t2,ti)=>{
+          const cur=csym(getCO());const yr=t2.ppm>0?cur+' '+fmt(t2.ppm*emp*12):t2.impl>0?'one-time':'—';
+          html+=`<tr>
+            <td><input type="number" value="${t2.from}" onchange="library[${pi}].tiers[${ti}].from=+this.value;render()" style="width:48px"></td>
+            <td><input value="${t2.to===null?'':t2.to}" placeholder="∞" onchange="library[${pi}].tiers[${ti}].to=this.value===''?null:+this.value;render()" style="width:55px"></td>
+            <td><input type="number" step="0.01" value="${t2.ppm}" onchange="library[${pi}].tiers[${ti}].ppm=parseFloat(this.value)||0;renderPicklist();render()" style="width:55px"></td>
+            <td style="color:#888;font-size:10px">${yr}</td>
+            <td><input type="number" step="500" value="${t2.impl||0}" onchange="library[${pi}].tiers[${ti}].impl=+this.value;renderPicklist();render()" style="width:60px"></td>
+            <td><span class="del-x" onclick="delTier(${pi},${ti})">×</span></td>
+          </tr>`
+        });
+        html+=`</tbody></table>
+            <button class="add-tier-link" onclick="addTier(${pi})">+ add tier</button>
+          </div>
+        </div>`
+      }
+      html+='</div>'
+    });
+    html+='</div></div>'
+  });
+  document.getElementById('libraryContent').innerHTML=html||'<div style="padding:20px;text-align:center;color:#bbb;font-size:12px">No products match your filter.</div>'
+}
+
+function toggleEdit(id){editingProdId=editingProdId===id?null:id;renderLibrary()}
+function renameId(oldId,newId){
+  const p=library.find(x=>x.id===oldId);if(!p)return;p.id=newId;
+  // update offers that reference old id
+  offers.forEach(o=>{
+    const si=(o.selected||[]).indexOf(oldId);if(si>-1)o.selected[si]=newId;
+    if(o.overrides&&o.overrides[oldId]){o.overrides[newId]=o.overrides[oldId];delete o.overrides[oldId]}
+  });
+  selected.delete(oldId);
+  renderPicklist();renderOverrides();render();renderLibrary()
+}
+function addTier(pi){const last=library[pi].tiers[library[pi].tiers.length-1];library[pi].tiers.push({from:(last.to||50000)+1,to:null,ppm:0,impl:0});renderLibrary()}
+function delTier(pi,ti){if(library[pi].tiers.length<=1)return;library[pi].tiers.splice(ti,1);renderPicklist();render();renderLibrary()}
+function delLibProd(id){
+  if(!confirm('Remove "'+library.find(p=>p.id===id)?.name+'" from the library? This cannot be undone.'))return;
+  library=library.filter(p=>p.id!==id);selected.delete(id);
+  editingProdId=null;
+  renderPicklist();renderOverrides();render();renderLibrary()
+}
+function addLibProduct(){
+  const id='PROD_'+Date.now();
+  library.push({id,name:'New Product',type:'license',metric:'User',startOffset:0,duration:36,tiers:[{from:1,to:null,ppm:0,impl:0}]});
+  editingProdId=id;libExpanded['license']=true;
+  renderPicklist();renderLibrary();
+  // scroll to bottom of library tab
+  setTimeout(()=>{const lc=document.getElementById('libraryContent');if(lc)lc.scrollTop=lc.scrollHeight},100)
+}
+
+// ═══ UI HELPERS ══════════════════════════════════════════════════
+function switchTab(name,btn){
+  document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');btn.classList.add('active');
+  if(name==='library')renderLibrary()
+}
+
+function handleVendorLogo(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    vendorLogoDataUrl=ev.target.result;
+    document.getElementById('vendorLogoThumb').src=vendorLogoDataUrl;
+    document.getElementById('vendorLogoThumb').style.display='block';
+    document.getElementById('vendorLogoPlh').style.display='none';
+    document.getElementById('vendorLogoRemove').style.display='block';
+    uco();
+  };r.readAsDataURL(f);
+}
+function removeVendorLogo(){
+  vendorLogoDataUrl=null;
+  document.getElementById('vendorLogoThumb').style.display='none';
+  document.getElementById('vendorLogoPlh').style.display='block';
+  document.getElementById('vendorLogoRemove').style.display='none';
+  uco();
+}
+function setLogoTab(t){document.getElementById('logoUpPane').style.display=t==='up'?'block':'none';document.getElementById('logoUrlPane').style.display=t==='url'?'block':'none';document.getElementById('ltabUp').classList.toggle('active',t==='up');document.getElementById('ltabUrl').classList.toggle('active',t==='url')}
+function handleLogo(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{logoDataUrl=ev.target.result;document.getElementById('logoPlh').style.display='none';document.getElementById('logoPrvW').style.display='flex';document.getElementById('logoPrvI').src=logoDataUrl;uco()};r.readAsDataURL(f)}
+function remLogo(e){e.stopPropagation();logoDataUrl=null;document.getElementById('logoPlh').style.display='block';document.getElementById('logoPrvW').style.display='none';document.getElementById('logoInput').value='';uco()}
+function handleLogoUrl(u){const t=u.trim();if(!t){logoDataUrl=null;document.getElementById('logoUrlPrv').style.display='none';uco();return}logoDataUrl=t;document.getElementById('logoUrlImg').src=t;document.getElementById('logoUrlPrv').style.display='flex';uco()}
+function remLogoUrl(){logoDataUrl=null;document.getElementById('logoUrl').value='';document.getElementById('logoUrlPrv').style.display='none';uco()}
+
+// ═══ RENDER OFFER ════════════════════════════════════════════════
+const CURRENCY_SYMBOLS={EUR:'€',DKK:'kr.',SEK:'kr',NOK:'kr',GBP:'£',USD:'$',CHF:'CHF',PLN:'zł'};
+function csym(o){return CURRENCY_SYMBOLS[o&&o.currency||'EUR']||'€'}
+
+function render(){
+  const o=getCO();if(!o)return;
+  const emp=o.employees||600,disc=o.discountPct||0;
+  const selProds=library.filter(p=>(o.selected||[]).includes(p.id));
+  if(!selProds.length){document.getElementById('offerDoc').innerHTML=`<div class="empty"><svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="8" y="4" width="24" height="32" rx="3" stroke="#ccc" stroke-width="1.5"/><line x1="13" y1="13" x2="27" y2="13" stroke="#999" stroke-width="1.5"/><line x1="13" y1="19" x2="27" y2="19" stroke="#999" stroke-width="1.5"/><line x1="13" y1="25" x2="21" y2="25" stroke="#999" stroke-width="1.5"/></svg><p>Select products to generate offer</p></div>`;return}
+  const dd=o.offerDate?new Date(o.offerDate).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'.'):'—';
+  const vd=o.validUntil?new Date(o.validUntil).toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'}).replace(/\//g,'.'):'—';
+
+  const typeGroups={};TYPES.forEach(t=>{typeGroups[t]=selProds.filter(p=>p.type===t)});
+  let rows='';const typeTotals={};TYPES.forEach(t=>{typeTotals[t]={lic:0,impl:0}});
+
+  TYPES.forEach(t=>{
+    const prods=typeGroups[t];if(!prods.length)return;
+    rows+=`<tr class="${TYPE_CLASS[t]}"><td colspan="7">${TYPE_LABELS[t]}</td></tr>`;
+    prods.forEach(p=>{
+      const{lic,impl}=getEff(p,emp,o);
+      typeTotals[t].lic+=lic;typeTotals[t].impl+=impl;
+      const ov_d=(o&&o.overrides&&o.overrides[p.id])||{};
+      const sdRaw=ov_d.startDate!=null?ov_d.startDate:(o.offerDate?addMonths(o.offerDate,p.startOffset):null);
+      const edRaw=ov_d.endDate!=null?ov_d.endDate:(o.offerDate?addMonths(o.offerDate,p.startOffset+p.duration):null);
+      const sd=sdRaw||'TBD';
+      const ed=edRaw||'TBD';
+      const ml=p.metric!=='N/A'?emp.toLocaleString():'N/A';
+      if(lic>0){
+        const tier=getTier(p,emp);
+        const ov=(o&&o.overrides&&o.overrides[p.id])||{};
+        let pepmVal='—';
+        let pepmRaw=0;
+        if(p.type==='license'&&p.metric!=='N/A'){
+          if(ov.pepm!=null){pepmRaw=ov.pepm;pepmVal=csym(o)+' '+fmtD(ov.pepm,3);}
+          else if(ov.lic!=null&&emp>0){pepmRaw=ov.lic/emp/12;pepmVal=csym(o)+' '+fmtD(pepmRaw,3);}
+          else if(tier&&tier.ppm>0){pepmRaw=tier.ppm;pepmVal=csym(o)+' '+fmtD(tier.ppm,3);}
+        }
+        // License period in years
+        const durYears=ov.years!=null?ov.years:(p.duration?Math.round(p.duration/12):3);
+        const edFinal=ov.endDate!=null?ov.endDate:(o.offerDate?addMonths(o.offerDate,p.startOffset+durYears*12):'TBD');
+        // Total contract value = yearly × years
+        const contractTotal=lic*durYears;
+        rows+=`<tr>
+          <td class="td-svc">${p.name}</td>
+          <td class="td-m">${p.metric}</td>
+          <td class="td-m">${ml}</td>
+          <td class="td-m">${sd}</td>
+          <td class="td-m">${edFinal}</td>
+          <td class="td-m" style="text-align:right">${pepmVal}</td>
+          <td>${csym(o)} ${fmt(lic)}</td>
+        </tr>`;
+      }
+      if(impl>0){rows+=`<tr><td class="td-svc">${p.name}</td><td class="td-m">One-time</td><td class="td-m">N/A</td><td class="td-m">${sd}</td><td class="td-m">${ed}</td><td class="td-m" style="text-align:right">—</td><td>${csym(o)} ${fmt(impl)}</td></tr>`}
+    })
+  });
+
+  const activeTypes=TYPES.filter(t=>typeGroups[t].length>0);
+  let gLic=0,gImpl=0;TYPES.forEach(t=>{gLic+=typeTotals[t].lic;gImpl+=typeTotals[t].impl});
+  const sub=gLic+gImpl,discAmt=sub*(disc/100),total=sub-discAmt;
+
+  // Year 1 total = all yearly license fees + all one-time costs (impl/migration/custom)
+  const year1Total=gLic+gImpl;
+
+  // Total contract value = sum of (lic × contract years per product) + all one-time costs
+  let contractLicTotal=0;
+  let maxYears=1;
+  selProds.forEach(p=>{
+    const{lic}=getEff(p,emp,o);
+    if(p.type==='license'&&lic>0){
+      const ov2=(o&&o.overrides&&o.overrides[p.id])||{};
+      const durYrs=ov2.years!=null?ov2.years:(p.duration?Math.round(p.duration/12):3);
+      contractLicTotal+=lic*durYrs;
+      if(durYrs>maxYears)maxYears=durYrs;
+    }
+  });
+  const contractTotal=(contractLicTotal+gImpl)*(1-disc/100);
+  const discountFactor=1-disc/100;
+
+  let tot='';
+  if(activeTypes.length>1){activeTypes.forEach(t=>{const tl=typeTotals[t].lic+typeTotals[t].impl;if(tl>0)tot+=`<div class="trow ${TYPE_TROW[t]}"><span>${TYPE_LABELS[t]}</span><span>${csym(o)} ${fmt(tl)}</span></div>`});tot+=`<div style="height:5px"></div>`}
+  if(disc>0){tot+=`<div class="trow mu"><span>Subtotal</span><span>${csym(o)} ${fmt(sub)}</span></div>`;tot+=`<div class="trow disc"><span>Discount (${disc}%)</span><span>− ${csym(o)} ${fmt(discAmt)}</span></div>`}
+  tot+=`<div class="trow grand"><span class="tlbl">Total year 1</span><span>${csym(o)} ${fmt(total)}</span></div>`;
+  if(maxYears>1){tot+=`<div class="trow grand" style="margin-top:6px;padding-top:10px"><span class="tlbl">Total contract (${maxYears} yr)</span><span>${csym(o)} ${fmt(contractTotal)}</span></div>`;}
+  if(o.showListPrice&&disc>0)tot+=`<div class="trow" style="font-size:11px;color:#bbb;padding-top:5px;border-top:1px dashed #eee;margin-top:4px"><span>List price (before discount)</span><span>${csym(o)} ${fmt(sub)}</span></div>`;
+
+  const nh=o.notes?`<div class="nlbl">Notes</div><div class="ntxt">${o.notes.replace(/\n/g,'<br>')}</div>`:'';
+  // Customer logo (right side)
+  const lh=o.logoDataUrl?`<img src="${o.logoDataUrl}" style="max-height:46px;max-width:155px;object-fit:contain;opacity:.82;filter:brightness(0) invert(1)" alt="">` :'';
+  // Vendor logo (left side in header)
+  const vlh=(o.vendorLogoDataUrl||vendorLogoDataUrl)?`<img src="${o.vendorLogoDataUrl||vendorLogoDataUrl}" style="max-height:52px;max-width:52px;object-fit:contain;border-radius:8px;margin-right:14px;flex-shrink:0" alt="">`:'' ;
+
+  document.getElementById('offerDoc').innerHTML=`
+  <div class="ohdr">
+    <div class="ohdr-left" style="display:flex;align-items:center">${vlh}<div><h2>Service Offer</h2><p>Prepared by ${o.senderName||'Your Company'}${o.senderContact?' · '+o.senderContact:''}</p></div></div>
+    <div class="ohdr-right">${lh}<div class="ometa"><div class="oref">${o.offerRef||'—'}</div><div class="odate">Date: ${dd}</div></div></div>
+  </div>
+  <div class="obody">
+    <div class="oparties">
+      <div><div class="plbl">Vendor</div><div class="pnm">${o.senderName||'—'}</div><div class="pdt">${o.senderContact||''}</div></div>
+      <div><div class="plbl">Client</div><div class="pnm">${o.clientName||'—'}</div><div class="pdt">${o.contactName?o.contactName+'<br>':''}Employees covered: ${emp.toLocaleString()}</div></div>
+    </div>
+    <table class="otbl">
+      <thead><tr><th style="width:29%">Cloud service</th><th style="width:9%">Metric</th><th style="width:9%">Limit</th><th style="width:11%">Start date</th><th style="width:11%">End date</th><th style="width:12%;text-align:right">PEPM</th><th style="width:13%;text-align:right">Yearly fee</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="ototals">${tot}</div>
+  </div>
+  <div class="oftr"><div class="val">This offer is valid until <strong>${vd}</strong>. All prices in ${o.currency||'EUR'}, excluding VAT.</div>${nh}</div>`
+}
+
+// ─── ATTACHMENTS ─────────────────────────────────────────────────
+let attachments=[]; // [{name, dataUrl, type}]
+
+function handleAttach(e){
+  const files=[...e.target.files];
+  files.forEach(f=>{
+    const r=new FileReader();
+    r.onload=ev=>{
+      attachments.push({name:f.name,dataUrl:ev.target.result,type:f.type});
+      renderAttachList();
+      const o=getCO();if(o)o.attachments=attachments.map(a=>({name:a.name,type:a.type,dataUrl:a.dataUrl}));
+    };r.readAsDataURL(f);
+  });
+  e.target.value='';
+}
+
+function removeAttach(i){
+  attachments.splice(i,1);
+  renderAttachList();
+  const o=getCO();if(o)o.attachments=[...attachments];
+}
+
+function renderAttachList(){
+  const c=document.getElementById('attachList');if(!c)return;
+  const db=document.getElementById('btnDocs');if(db)db.style.display=attachments.length?'inline-block':'none';
+  c.innerHTML=attachments.map((a,i)=>`
+    <div style="display:flex;align-items:center;gap:7px;padding:6px 9px;border:1px solid #e8e5dd;border-radius:7px;background:#fafaf8;margin-bottom:4px">
+      <svg width="13" height="14" viewBox="0 0 13 14" fill="none"><rect x="1" y="1" width="11" height="12" rx="2" stroke="#888" stroke-width="1.2"/><line x1="3.5" y1="4.5" x2="9.5" y2="4.5" stroke="#888" stroke-width="1"/><line x1="3.5" y1="7" x2="9.5" y2="7" stroke="#888" stroke-width="1"/><line x1="3.5" y1="9.5" x2="7" y2="9.5" stroke="#888" stroke-width="1"/></svg>
+      <span style="flex:1;font-size:11px;font-weight:600;color:#444;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${a.name}</span>
+      <button onclick="downloadAttach(${i})" style="padding:2px 8px;border:1px solid #ddd;border-radius:4px;font-size:10px;color:#444;background:#fff;cursor:pointer">↓ Download</button>
+      <button onclick="removeAttach(${i})" style="padding:2px 6px;border:1px solid #ddd;border-radius:4px;font-size:10px;color:#999;background:#fff;cursor:pointer">✕</button>
+    </div>`).join('');
+}
+
+function downloadAttach(i){
+  const a=attachments[i];if(!a)return;
+  const el=document.createElement('a');
+  el.href=a.dataUrl;el.download=a.name;el.click();
+}
+
+function downloadAllAttachments(){
+  attachments.forEach((_,i)=>setTimeout(()=>downloadAttach(i),i*300));
+}
+
+function exportZip(){
+  const btn=document.getElementById('btnDocs');
+  btn.textContent='Building ZIP…';btn.disabled=true;
+
+  const o=getCO();
+  const clientSlug=(o&&o.clientName?o.clientName.replace(/[^a-z0-9]/gi,'_'):'offer');
+  const offerSlug=(o&&o.offerRef?o.offerRef.replace(/[^a-z0-9]/gi,'_'):'offer');
+  const folderName=clientSlug+(offerSlug?'_'+offerSlug:'');
+
+  // Render offer as JPG first, then bundle everything
+  const el=document.getElementById('offerDoc');
+  html2canvas(el,{
+    scale:2,useCORS:true,allowTaint:true,backgroundColor:'#ffffff',logging:false,
+    onclone:function(doc){
+      const hdr=doc.querySelector('.ohdr');if(hdr)hdr.style.background='#2c4a6e';
+      doc.querySelectorAll('.sec-license td').forEach(td=>{td.style.background='#e8f1fc';td.style.color='#185fa5'});
+      doc.querySelectorAll('.sec-implementation td').forEach(td=>{td.style.background='#fdf3e3';td.style.color='#854f0b'});
+      doc.querySelectorAll('.sec-migration td').forEach(td=>{td.style.background='#f3edfb';td.style.color='#533fb0'});
+      doc.querySelectorAll('.sec-custom td').forEach(td=>{td.style.background='#eaf3de';td.style.color='#3b6d11'});
+      const oftr=doc.querySelector('.oftr');if(oftr)oftr.style.background='#f8f6f0';
+    }
+  }).then(function(canvas){
+    const jpgDataUrl=canvas.toDataURL('image/jpeg',0.95);
+    // Strip the data URL prefix to get raw base64
+    const jpgB64=jpgDataUrl.split(',')[1];
+
+    const zip=new JSZip();
+    const folder=zip.folder(folderName);
+
+    // Add offer JPG
+    folder.file(folderName+'_offer.jpg', jpgB64, {base64:true});
+
+    // Add all attachments
+    attachments.forEach(function(a){
+      const b64=a.dataUrl.split(',')[1];
+      folder.file(a.name, b64, {base64:true});
+    });
+
+    // Generate and download ZIP
+    return zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
+  }).then(function(blob){
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=folderName+'.zip';
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    btn.textContent='↓ Export ZIP';btn.disabled=false;
+  }).catch(function(err){
+    console.error(err);
+    btn.textContent='↓ Export ZIP';btn.disabled=false;
+    alert('ZIP export failed: '+err.message);
+  });
+}
+
+function saveAsJpg(){
+  const el=document.getElementById('offerDoc');
+  if(!el)return;
+  const btn=document.getElementById('btnJpg');
+  btn.textContent='Rendering…';btn.disabled=true;
+  // Temporarily ensure full background colors render
+  const orig=el.style.cssText;
+  html2canvas(el,{
+    scale:2,
+    useCORS:true,
+    allowTaint:true,
+    backgroundColor:'#ffffff',
+    logging:false,
+    onclone:function(doc){
+      // Force exact colors in the cloned doc
+      const hdr=doc.querySelector('.ohdr');
+      if(hdr)hdr.style.background='#2c4a6e';
+      doc.querySelectorAll('.sec-license td').forEach(td=>{td.style.background='#e8f1fc';td.style.color='#185fa5'});
+      doc.querySelectorAll('.sec-implementation td').forEach(td=>{td.style.background='#fdf3e3';td.style.color='#854f0b'});
+      doc.querySelectorAll('.sec-migration td').forEach(td=>{td.style.background='#f3edfb';td.style.color='#533fb0'});
+      doc.querySelectorAll('.sec-custom td').forEach(td=>{td.style.background='#eaf3de';td.style.color='#3b6d11'});
+      const oftr=doc.querySelector('.oftr');
+      if(oftr)oftr.style.background='#f8f6f0';
+    }
+  }).then(function(canvas){
+    // Convert to JPG and download
+    const jpg=canvas.toDataURL('image/jpeg',0.95);
+    const a=document.createElement('a');
+    const o=getCO();
+    const name=(o&&o.clientName?o.clientName.replace(/[^a-z0-9]/gi,'_'):'offer')+'_offer.jpg';
+    a.href=jpg;a.download=name;a.click();
+    btn.textContent='Save as JPG';btn.disabled=false;
+  }).catch(function(err){
+    console.error(err);
+    btn.textContent='Save as JPG';btn.disabled=false;
+    alert('Could not render image. Try Print / Export PDF instead.');
+  });
+}
+
+function copyOffer(){
+  const o=getCO();if(!o)return;const emp=o.employees||600;
+  const selProds=library.filter(p=>(o.selected||[]).includes(p.id));if(!selProds.length)return;
+  let lines=[];
+  TYPES.forEach(t=>{const g=selProds.filter(p=>p.type===t);if(!g.length)return;lines.push('\n'+TYPE_LABELS[t].toUpperCase());g.forEach(p=>{const{lic,impl}=getEff(p,emp,o);lines.push(`  ${p.name}: €${fmt(lic)}/yr${impl>0?' + €'+fmt(impl)+' one-time':''}`);})});
+  const sub=selProds.reduce((s,p)=>{const{lic,impl}=getEff(p,emp,o);return s+lic+impl},0);
+  const total=sub*(1-(o.discountPct||0)/100);
+  lines.push(`\nTotal: ${csym(o)}${fmt(total)}`);
+  navigator.clipboard.writeText(lines.join('\n').trim()).then(()=>{const b=document.querySelector('.btn-copy');b.textContent='Copied!';setTimeout(()=>b.textContent='Copy as text',2000)})
+}
+
+// ═══ INIT ════════════════════════════════════════════════════════
+function initApp(fromZoho){
+  if(!fromZoho && !loadState()){
+    const first=mkOffer('Offer 1');first.selected=['ORG_1000','ORG_IMPL','PAY_1000'];
+    offers.push(first);currentId=first.id;
+  }
+  const initOffer=offers.find(o=>o.id===currentId)||offers[0];
+  currentId=initOffer.id;
+  loadUI(initOffer);renderOffersList();renderOfferTabs();renderPicklist();renderOverrides();render();
+  if(fromZoho) showSyncStatus('✓ Loaded from Zoho CRM','#3b6d11');
+}
+
+// Try Zoho SDK first, fall back to localStorage
+if(typeof ZOHO!=='undefined'){
+  ZOHO.embeddedApp.on('PageLoad',function(){
+    zohoMode=true;
+    // Try Zoho first, fall back to localStorage if no record ID configured
+    if(ZOHO_NOTE_RECORD_ID){
+      showSyncStatus('Loading from Zoho…','#2c4a6e');
+      loadFromZoho().then(loaded=>initApp(loaded));
+    } else {
+      initApp(loadState());
+    }
+  });
+  ZOHO.embeddedApp.init();
+} else {
+  // Running standalone (GitHub Pages / local)
+  initApp(false);
+}
+</script>
+</body>
+</html>
